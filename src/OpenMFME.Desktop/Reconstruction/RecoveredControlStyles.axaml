@@ -1,0 +1,45 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style Selector=".dfm-ui CheckBox">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="15,*">
+          <Border Width="12" Height="12" BorderBrush="#777777" BorderThickness="1"
+                  Background="White" CornerRadius="1" HorizontalAlignment="Left"
+                  VerticalAlignment="Center">
+            <TextBlock Text="✓" FontSize="11" Foreground="#006CC8"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{TemplateBinding IsChecked}" />
+          </Border>
+          <ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
+                            VerticalAlignment="Center" RecognizesAccessKey="True" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector=".dfm-ui RadioButton">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Grid ColumnDefinitions="16,*">
+          <Border Width="12" Height="12" BorderBrush="#777777" BorderThickness="1"
+                  Background="White" CornerRadius="6" HorizontalAlignment="Left"
+                  VerticalAlignment="Center">
+            <Ellipse Width="6" Height="6" Fill="#006CC8"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     IsVisible="{TemplateBinding IsChecked}" />
+          </Border>
+          <ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
+                            VerticalAlignment="Center" RecognizesAccessKey="True" />
+        </Grid>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+  <Style Selector=".dfm-ui CheckBox:disabled, .dfm-ui RadioButton:disabled">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+  <Style Selector=".dfm-ui CheckBox:focus-visible, .dfm-ui RadioButton:focus-visible">
+    <Setter Property="Background" Value="#D8E9FA" />
+  </Style>
+</Styles>

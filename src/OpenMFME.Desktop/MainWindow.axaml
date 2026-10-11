@@ -1,49 +1,36 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="OpenMFME.Desktop.MainWindow"
-        Title="OpenMFME" Width="1120" Height="760" MinWidth="760" MinHeight="520">
+        Title="OpenMFME" Width="1120" Height="760" MinWidth="1024" MinHeight="520">
   <Grid RowDefinitions="Auto,Auto,*,Auto">
-    <Menu Grid.Row="0">
-      <MenuItem Header="_File">
-        <MenuItem Header="_Open layout information…" Click="OpenLayout_Click" />
-        <Separator />
-        <MenuItem Header="E_xit" Click="Exit_Click" />
-      </MenuItem>
-      <MenuItem Header="_View">
-        <MenuItem Header="_Recovered form inventory…" Click="Forms_Click" />
-      </MenuItem>
-      <MenuItem Header="_Help">
-        <MenuItem Header="_About OpenMFME…" Click="About_Click" />
-      </MenuItem>
-    </Menu>
-    <Border Grid.Row="1" Padding="12,8" BorderBrush="#D5D9DE" BorderThickness="0,0,0,1">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="Open layout information…" Click="OpenLayout_Click" />
-        <Button Content="Recovered forms" Click="Forms_Click" />
-      </StackPanel>
-    </Border>
+    <Menu x:Name="MainMenuBar" Grid.Row="0" />
+    <ScrollViewer x:Name="MeterStrip" Grid.Row="1"
+                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                  Background="#F0F0F0" />
     <Grid Grid.Row="2" ColumnDefinitions="*,300" Margin="16" ColumnSpacing="16">
       <Border Background="#E9EDF1" BorderBrush="#CAD1D9" BorderThickness="1" CornerRadius="4">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="32" Spacing="16">
           <TextBlock Text="OpenMFME" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center" />
           <TextBlock Text="A new home for fruit machine preservation." FontSize="16" TextAlignment="Center" TextWrapping="Wrap" />
-          <TextBlock Text="This first build provides the desktop shell. Cabinet artwork, reels and lamps will appear here as the original interface is reconstructed." TextAlignment="Center" TextWrapping="Wrap" Foreground="#56616E" />
+          <TextBlock Text="The original menu structure and meter strip are now reconstructed. Browse the recovered forms to explore the windows and dialogs. Machine emulation is not connected yet." TextAlignment="Center" TextWrapping="Wrap" Foreground="#56616E" />
         </StackPanel>
       </Border>
       <Border Grid.Column="1" Padding="16" BorderBrush="#CAD1D9" BorderThickness="1" CornerRadius="4">
         <ScrollViewer>
           <StackPanel Spacing="16">
             <TextBlock Text="Layout information" FontSize="18" FontWeight="SemiBold" />
+            <Button Content="Open layout information…" Click="OpenLayout_Click" />
             <TextBlock x:Name="LayoutSummary" Text="Open a .gam file to inspect its system, layout and ROM filenames. This build does not run machine ROMs." TextWrapping="Wrap" />
             <Separator />
             <TextBlock Text="UI reconstruction" FontWeight="SemiBold" />
-            <TextBlock Text="The recovered form inventory records named form headers found in MFME. It is the starting point for rebuilding the original windows and dialogs." TextWrapping="Wrap" />
+            <TextBlock Text="All 66 form streams have been parsed. Standard controls are reconstructed; custom graphics and command behavior remain to be implemented." TextWrapping="Wrap" />
+            <Button Content="Browse recovered forms" Click="Forms_Click" />
           </StackPanel>
         </ScrollViewer>
       </Border>
     </Grid>
     <Border Grid.Row="3" Background="#F4F5F7" Padding="12,8" BorderBrush="#D5D9DE" BorderThickness="0,1,0,0">
-      <TextBlock x:Name="StatusText" Text="Ready · UI foundation · Emulation not connected" FontSize="12" />
+      <TextBlock x:Name="StatusText" Text="Ready · UI reconstruction · Emulation not connected" FontSize="12" />
     </Border>
   </Grid>
 </Window>

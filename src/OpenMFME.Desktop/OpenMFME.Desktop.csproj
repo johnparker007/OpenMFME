@@ -12,4 +12,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <AvaloniaResource Include="Assets/**" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OpenMFME.Formats\OpenMFME.Formats.csproj" />
+  </ItemGroup>
 </Project>
