@@ -15,7 +15,8 @@ A runnable C# / Avalonia UI reconstruction:
 - A Game Manager with recovered Find/Filter and Game Notes dialogs, name/platform filtering and read-only `.gam` layout information.
 - Saved per-game details and comments, with a Notes tab and editable display names.
 - A Game Manager report table with all 15 recovered columns, resizing, name/technology sorting, four preview tabs and working View commands.
-- Read-only MFME v20.1 FML previews with saved artwork, labels, component outlines, a property inspector and Fit/100% views.
+- Read-only MFME v20.1 FML previews with saved artwork, reel bands, lamp off/on images, labels, component outlines, a property inspector and Fit/100% views.
+- An optional rendering test that spins reels continuously and flashes lamp artwork on/off.
 
 This is an interface milestone. Preferences and game browsing are independent OpenMFME features; original emulation and editing commands are not implemented. Recovered-form previews allow temporary edits; the separate working preferences window saves OpenMFME settings. Game configurations, layouts and ROMs are never modified by these features. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
 
@@ -36,7 +37,7 @@ The application targets .NET 8 and Avalonia 12.1.4. NuGet restores packages on t
 
 Select **Game Manager** to enter its own window and menus; the main window is hidden until you exit. Use **Database → Set Main Game Folder** or **Additional Game Folders**, apply your folder choices, and choose **Save**. **Database → Scan All** rescans the library. **Exit** or the window close button returns to the main window. Search/filter the list, select a game, then choose **Load game** (or double-click it) to return to the main window and load its associated layout. **File → Load Game** also loads a single configuration file’s layout. Games cannot be played yet.
 
-The main window starts with a blank, full-width canvas beneath its meter strip. Choose **File → Load Layout** to load a v20.1 `.fml` directly into this canvas. Background/bitmap artwork and labels render. **UI reconstruction → Inspect loaded layout…** opens the separate diagnostic viewer with component properties, optional outlines and zoom controls; reels, lamps and displays remain static. See [FML layout previews](docs/fml-layout-preview.md).
+The main window starts with a blank, full-width canvas beneath its meter strip. Choose **File → Load Layout** to load a v20.1 `.fml` directly into this canvas. Background/bitmap artwork, reel bands, lamp off images and labels render. **UI reconstruction → Inspect loaded layout…** opens the separate diagnostic viewer with component properties, optional outlines and zoom controls; displays remain static. Choose **UI reconstruction → Animate reels and lamps (test)** to spin the reels and flash all graphic lamp components. Click it again to stop and restore idle outputs. This is a rendering demonstration; machine emulation is not connected. See [FML layout previews](docs/fml-layout-preview.md).
 
 Open **UI reconstruction → Browse all recovered forms** to preview the original windows, including the original Preferences and Game Manager designs. **File → Preferences** opens the recovered MFME Preferences form. Other mapped menu entries, such as **Configuration**, also open previews.
 
@@ -77,5 +78,5 @@ Extraction treats the executable as data and never runs it. The source hash and 
 
 1. Decode archived image-list masks and implement remaining custom-control equivalents.
 2. Recover runtime-populated tabs/lists and remaining inherited properties/client-area defaults.
-3. Render saved reel bands, lamp artwork and displays from the decoded layout model, alongside remaining game-library actions.
+3. Refine reel projection and individual lamp masks, render displays, and add remaining game-library actions.
 4. Connect a separately testable emulation engine, starting with Astra / Party Time Player.

@@ -11,8 +11,11 @@ internal sealed class LayoutSurface : IDisposable
 {
     private readonly List<Bitmap> bitmaps = [];
     private readonly Dictionary<int, Border> outlines = [];
+    private readonly List<LayoutReelControl> reels = [];
+    private readonly List<LayoutLampControl> lamps = [];
+    public bool HasAnimatedControls => reels.Count > 0 || lamps.Count > 0;
     public Canvas Canvas { get; }
-    public int ImageFailures { get; }
+    public int ImageFailures { get; private set; }
     public Action<LayoutComponent>? Selected { get; set; }
 
     public LayoutSurface(LayoutDocument document)
@@ -20,7 +23,7 @@ internal sealed class LayoutSurface : IDisposable
         Canvas = new Canvas { Name = "LayoutCanvas", Width = document.Width, Height = document.Height, ClipToBounds = true };
         var background = document.Components.FirstOrDefault(component => component.Type == "Background");
         Canvas.Background = ReadColour(background?.Properties["Values"]?["Colour"]?.GetValue<string>(), Brushes.LightGray);
-        var imageFailures = 0;
+
         foreach (var component in document.Components)
         {
             if (component.Width == 0 || component.Height == 0) continue;
@@ -37,7 +40,36 @@ internal sealed class LayoutSurface : IDisposable
                         bitmaps.Add(bitmap); visual = new Image { Source = bitmap, Stretch = Stretch.Fill };
                     }
                     catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
-                    { imageFailures++; }
+                    { ImageFailures++; }
+                }
+            }
+            else if (component.Type == "Reel")
+            {
+                var band = LoadImage(component, "band_image");
+                if (band is not null)
+                {
+                    var values = component.Properties["Values"];
+                    var reel = new LayoutReelControl(component.Index, component.Number,
+                        values?["Stops"]?.GetValue<int>() ?? 16, values?["BandOffset"]?.GetValue<double>() ?? 0,
+                        component.Properties["Geometry"]?["Orientation"]?.GetValue<string>() == "Horizontal",
+                        values?["Reversed"]?.GetValue<bool>() == true, values?["LampsEnabled"]?.GetValue<bool>() == true,
+                        (values?["OffLevel"]?.GetValue<double>() ?? 64) / 255,
+                        band, LoadImage(component, "overlay_image", greenKey: true), LoadImage(component, "gradient_image", shading: true))
+                        { Name = "LayoutReel" + component.Index };
+                    reels.Add(reel); visual = reel;
+                }
+            }
+            else if (component.Type == "Lamp")
+            {
+                var transparent = component.Properties["Values"]?["Transparent"]?.GetValue<bool>() == true;
+                var off = LoadImage(component, "brightmask_main", transparent);
+                var on = LoadImage(component, "sublamp_1_main_image", transparent);
+                if (off is not null || on is not null)
+                {
+                    var numbers = (component.Properties["SubLampNumberTable"] as System.Text.Json.Nodes.JsonObject)?
+                        .Where(pair => pair.Key.StartsWith("Lamp", StringComparison.Ordinal)).Select(pair => pair.Value!.GetValue<int>()).Where(value => value >= 0).Distinct().ToArray() ?? [];
+                    var lamp = new LayoutLampControl(component.Index, numbers, off, on) { Name = "LayoutLamp" + component.Index };
+                    lamps.Add(lamp); visual = lamp;
                 }
             }
             else if (component.Type == "Label")
@@ -59,8 +91,33 @@ internal sealed class LayoutSurface : IDisposable
             outline.PointerPressed += (_, _) => Selected?.Invoke(component);
             outlines[component.Index] = outline; Place(outline, component);
         }
-        ImageFailures = imageFailures;
         SetOutlines(false);
+    }
+
+    private Bitmap? LoadImage(LayoutComponent component, string key, bool greenKey = false, bool shading = false)
+    {
+        var image = component.Images.FirstOrDefault(item => item.Key == key);
+        if (image is null) return null;
+        try
+        {
+            var bitmap = LayoutArtwork.Load(image, greenKey, shading);
+            bitmaps.Add(bitmap); return bitmap;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
+        { ImageFailures++; return null; }
+    }
+
+    public void ApplyRenderTest(double seconds)
+    {
+        var lit = ((long)(seconds * 2) & 1) == 0;
+        foreach (var reel in reels) reel.SetState(seconds * (5 + Math.Abs(reel.ReelNumber % 3)), lit);
+        foreach (var lamp in lamps) lamp.SetState(lit);
+    }
+
+    public void ResetOutputs()
+    {
+        foreach (var reel in reels) reel.SetState(0, false);
+        foreach (var lamp in lamps) lamp.SetState(false);
     }
 
     private void Place(Control control, LayoutComponent component)
@@ -83,7 +140,7 @@ internal sealed class LayoutSurface : IDisposable
 
     public void Dispose()
     {
-        Canvas.Children.Clear();
+        Canvas.Children.Clear(); reels.Clear(); lamps.Clear();
         foreach (var bitmap in bitmaps) bitmap.Dispose();
         bitmaps.Clear();
     }

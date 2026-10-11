@@ -74,7 +74,7 @@ public sealed class LayoutPreviewWindow : Window
             SetZoom(); UpdateOutlines();
             var offCanvas = document.Components.Count(component => component.X >= document.Width || component.Y >= document.Height);
             status.Text = $"{document.Components.Count} components · {document.Width:0} × {document.Height:0} · " +
-                "Background/bitmap artwork and labels shown; reels, lamps and displays are outlines." +
+                "Saved artwork, reel bands, lamp off images and labels shown; displays are not connected." +
                 (offCanvas > 0 ? $" {offCanvas} components outside the saved background remain available in the inspector." : "") +
                 (imageFailures > 0 ? $" {imageFailures} image(s) could not be displayed." : "");
         }

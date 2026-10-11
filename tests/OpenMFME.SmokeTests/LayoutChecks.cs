@@ -153,15 +153,44 @@ internal static class LayoutChecks
                 using var output = File.Create(Path.Combine(renderDirectory, "MainWindowPartyTime.png"));
                 frame.Save(output, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
             }
+            var reels = main.GetVisualDescendants().OfType<LayoutReelControl>().ToArray();
+            var lamps = main.GetVisualDescendants().OfType<LayoutLampControl>().ToArray();
+            check(reels.Length == 6 && lamps.Length == 99, "Party Time lost rendered reel bands or lamp images");
+            check(reels.All(reel => reel.Stops is 8 or 16), "Party Time reel stop counts changed");
+            var testMenu = main.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>().Last()
+                .ItemsSource!.Cast<MenuItem>().Single(item => item.Name == "RenderTest");
+            check(testMenu.IsEnabled && !main.IsRenderTestRunning, "Rendering test should be available but off by default");
+            testMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+            check(main.IsRenderTestRunning && testMenu.IsChecked && lamps.All(lamp => lamp.IsOn), "Rendering test menu did not start all lamps");
+            if (renderDirectory is not null)
+            {
+                using var frame = main.CaptureRenderedFrame()!;
+                using var output = File.Create(Path.Combine(renderDirectory, "PartyTimeLampsOn.png"));
+                frame.Save(output, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            }
+            using (var tickWindow = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
+                Dispatcher.UIThread.MainLoop(tickWindow.Token);
+            check(reels.All(reel => reel.Position > 0), "Rendering test timer did not spin reels");
+            testMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+            check(!main.IsRenderTestRunning && !testMenu.IsChecked && lamps.All(lamp => !lamp.IsOn) && reels.All(reel => reel.Position == 0),
+                "Rendering test stop did not restore idle lamps/reels");
+            main.SetRenderTest(true);
+            main.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>().Single(item => item.Header?.ToString() == "Game Manager")
+                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+            check(!main.IsRenderTestRunning && !testMenu.IsChecked, "Hidden main window kept rendering test running");
+            main.GameManager!.Close(); Dispatcher.UIThread.RunJobs();
             var original = main.LoadedLayout;
             main.LoadLayout(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".fml")); Pump(main.LayoutLoadCompletion);
             check(main.LayoutLoadError is not null && ReferenceEquals(main.LoadedLayout, original), "Failed load lost the current layout or hid its error");
             foreach (var dialog in main.OwnedWindows.ToArray()) dialog.Close();
+            main.SetRenderTest(true);
             main.LoadLayout(layoutPath); main.LoadLayout(layoutPath); Pump(main.LayoutLoadCompletion);
+            check(!main.IsRenderTestRunning && !testMenu.IsChecked, "Replacing layout kept the old test timer running");
             check(main.LoadedLayout?.FilePath == layoutPath && main.LayoutLoadError is null, "Replacing an in-progress load failed");
+            main.SetRenderTest(true);
             main.LoadLayout(layoutPath); var pendingMain = main.LayoutLoadCompletion;
             main.Close(); Pump(pendingMain);
-            check(host.Child is null, "Closing main window retained the layout surface");
+            check(host.Child is null && !main.IsRenderTestRunning, "Closing main window retained the layout surface or test timer");
         }
         finally { if (File.Exists(settingsFile)) File.Delete(settingsFile); if (Directory.Exists(settingsDirectory)) Directory.Delete(settingsDirectory); }
         Console.WriteLine($"Verified FML: {decoded.Components.Count} components · {decoded.Width} × {decoded.Height}.");

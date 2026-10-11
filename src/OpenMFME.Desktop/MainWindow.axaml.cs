@@ -7,6 +7,8 @@ using OpenMFME.Formats;
 using OpenMFME.Desktop.Services;
 using OpenMFME.LayoutDecoder;
 using Avalonia.Media;
+using Avalonia.Threading;
+using System.Diagnostics;
 
 namespace OpenMFME.Desktop;
 
@@ -23,6 +25,10 @@ public partial class MainWindow : Window
 
     public LayoutPreviewWindow? LayoutPreview { get; private set; }
     private MenuItem? layoutInspector;
+    private MenuItem? renderTestMenu;
+    private readonly DispatcherTimer renderTestTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private readonly Stopwatch renderTestClock = new();
+    public bool IsRenderTestRunning => renderTestTimer.IsEnabled;
     private bool startupHandled;
     private bool closing;
     public GameBrowserWindow? GameManager => gameBrowser;
@@ -42,7 +48,11 @@ public partial class MainWindow : Window
         var inspect = new MenuItem { Header = "Inspect loaded layout…", IsEnabled = false };
         inspect.Click += (_, _) => { if (LoadedLayout is { } layout) PreviewLayout(layout.FilePath); };
         layoutInspector = inspect;
-        reconstruction.ItemsSource = new[] { browse, inspect };
+        renderTestMenu = new MenuItem { Name = "RenderTest", Header = "Animate reels and lamps (test)", IsEnabled = false,
+            ToggleType = MenuItemToggleType.CheckBox };
+        renderTestMenu.Click += (_, _) => SetRenderTest(!IsRenderTestRunning);
+        renderTestTimer.Tick += (_, _) => layoutSurface?.ApplyRenderTest(renderTestClock.Elapsed.TotalSeconds);
+        reconstruction.ItemsSource = new[] { browse, inspect, renderTestMenu };
         items.Add(reconstruction);
         MainMenuBar.ItemsSource = items;
         var meters = original.Children.Single(child => child.InstanceName == "MeterPanel");
@@ -57,7 +67,7 @@ public partial class MainWindow : Window
         };
         Closing += (_, _) =>
         {
-            closing = true; gameBrowser?.Close(); layoutCancellation?.Cancel();
+            SetRenderTest(false); closing = true; gameBrowser?.Close(); layoutCancellation?.Cancel();
             LayoutHost.Child = null; layoutSurface?.Dispose(); layoutSurface = null;
         };
     }
@@ -162,6 +172,7 @@ public partial class MainWindow : Window
             var document = await Task.Run(() => FmlLayoutReader.Read(path, cancellation.Token), cancellation.Token);
             if (closing || cancellation.IsCancellationRequested) return;
             var surface = new LayoutSurface(document);
+            SetRenderTest(false);
             LayoutHost.Child = null;
             layoutSurface?.Dispose(); layoutSurface = surface;
             LayoutHost.Child = new Viewbox
@@ -174,6 +185,7 @@ public partial class MainWindow : Window
             LoadedLayout = document;
             Title = gameTitle ?? Path.GetFileNameWithoutExtension(path);
             layoutInspector!.IsEnabled = true;
+            renderTestMenu!.IsEnabled = surface.HasAnimatedControls;
         }
         catch (OperationCanceledException) { }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or OverflowException)
@@ -188,6 +200,20 @@ public partial class MainWindow : Window
         {
             if (ReferenceEquals(layoutCancellation, cancellation)) layoutCancellation = null;
             cancellation.Dispose();
+        }
+    }
+
+    public void SetRenderTest(bool enabled)
+    {
+        if (enabled && (closing || layoutSurface?.HasAnimatedControls != true)) return;
+        renderTestMenu!.IsChecked = enabled;
+        if (enabled)
+        {
+            renderTestClock.Restart(); layoutSurface!.ApplyRenderTest(0); renderTestTimer.Start();
+        }
+        else
+        {
+            renderTestTimer.Stop(); renderTestClock.Reset(); layoutSurface?.ResetOutputs();
         }
     }
 
@@ -226,7 +252,7 @@ public partial class MainWindow : Window
             gameBrowser = null;
             if (!closing) { Show(); Activate(); }
         };
-        try { manager.Show(); Hide(); }
+        try { SetRenderTest(false); manager.Show(); Hide(); }
         catch { gameBrowser = null; manager.Close(); Show(); throw; }
     }
 

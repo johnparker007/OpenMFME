@@ -44,6 +44,20 @@ dotnet run --project tests/OpenMFME.SmokeTests -c Release -- --sample-game "C:/p
 
 ## Rendering scope
 
-This is a static layout preview. Reels, lamps, buttons, checkboxes and displays retain their geometry and decoded properties, but currently render as outlines rather than functional machine controls. Saved backgrounds may already show their cabinet artwork.
+The main canvas and inspector render saved background/bitmap artwork, reel bands, reel overlays, lamp off artwork and labels. Buttons, checkboxes and displays retain their geometry/properties but have no machine behavior. Pure green (`#00FF00`) is keyed out of reel overlays and graphic lamp images when the saved lamp Transparent flag is enabled. Existing alpha is preserved. Opaque lamp images retain their green pixels.
 
-Reel-band rendering, display glyphs, lamp masks/blending, specialized transparency and tiling, hardware callbacks and emulation remain to be implemented. Labels use approximate font rendering. Components are painted in decoded file order; this does not yet reproduce every MFME custom-control painting rule. The inspector provides the data needed for those next rendering steps.
+Each reel displays a wrapped three-symbol band window (or fewer when the strip has fewer stops). Saved Stops, BandOffset, Reversed and horizontal/vertical orientation determine its strip selection. The saved gradient is interpreted as grayscale light transmission; OffLevel controls the global unlit reel brightness when LampsEnabled is set. Frames are layered over the strip with green transparency. The strip is currently stretched into a flat viewport: MFME’s cylindrical projection, ReelHeight/WidthDiff, custom reel modes, winlines, per-symbol illumination masks and motor step calibration are not reproduced yet. The band-offset unit is provisionally treated as symbol stops and needs comparison with the original reel implementation.
+
+Graphic lamps use `brightmask_main` for the off image and `sublamp_1_main_image` for the on image. In this first pass the whole component switches state. Compound lamps preserve their decoded lamp-number tables, but individual sublamp masks, alternate on images and specialized Blend/inversion/effect rules are not applied. Colour/shape/text-only lamps remain outlines until implemented. The supplied Party Time sample has artwork for all 99 Lamp components and band images for all six reels.
+
+## Rendering test
+
+After loading a layout, choose **UI reconstruction → Animate reels and lamps (test)**. All rendered reels spin continuously at slightly different speeds, and all rendered graphic lamp components switch on/off every half second. Reel illumination switches with them. The menu is checked while running; click it again to stop. Idle means reel position zero (plus its saved band offset), with lamp outputs off.
+
+The test starts disabled and never starts automatically. It stops when a replacement layout loads successfully, when entering Game Manager, or when closing the main window. A failed load preserves the current view. No state is written to the FML or game configuration, no ROM runs, and no gameplay or machine timing is simulated.
+
+A monotonic clock drives the demonstration through a UI timer. Actual emulated timing must later come from an independent engine. The renderer’s state setters consume symbol positions and lamp on/off states, so drawing does not depend on the demonstration timer. Images and transparency conversions are prepared once per load, not decoded on each animation frame.
+
+Synthetic pixel checks verify colour-key/alpha handling, gradient transmission, lamp artwork changes, symbol advancement, fractional positions, negative/end-of-band wrapping, horizontal/reversed strips and resetting idle output. Real Party Time checks verify all six reel and 99 lamp controls, menu behavior, actual timer ticks and stopping on hide/reload/close. Neither copyrighted game assets nor ROMs are included in the repository.
+
+Display glyphs, specialized transparency/tiling, hardware callbacks and emulation remain to be implemented. Labels use approximate font rendering. Components are painted in decoded file order; this does not yet reproduce every MFME custom-control painting rule.
