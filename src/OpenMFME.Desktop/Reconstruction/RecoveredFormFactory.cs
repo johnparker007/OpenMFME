@@ -121,6 +121,9 @@ public sealed class RecoveredFormFactory
             "TShape" or "TBevel" => Shape(node),
             "TSplitter" => new Border { Background = Brushes.LightGray },
             "TUpDown" => UpDown(node),
+            "TImage32" or "TImgView32" or "TPaintBox32" or "TImage" => RecoveredGraphics.EmptyCanvas(node),
+            "TManyShape" => RecoveredGraphics.ColourSwatch(node, Colour(node, "BackColor", Brushes.White), Colour(node, "OutlineColor", Brushes.Black)),
+            "TzcLightOnOff" => RecoveredGraphics.DipSwitch(node),
             "TStatusBar" => new TextBlock { Text = node.Text("SimpleText") },
             // These components represent services, menus or dialogs rather than visible controls.
             "TMainMenu" or "TMenuItem" or "TPopupMenu" or "TTimer" or "TThreadedTimer" or
@@ -195,6 +198,22 @@ public sealed class RecoveredFormFactory
             IsEnabled = close,
             IsCancel = close
         };
+        var glyph = RecoveredGraphics.Glyph(node, !button.IsEnabled || !node.Boolean("Enabled", true));
+        if (glyph is not null)
+        {
+            var scale = Math.Min(1, Math.Min(Math.Max(1, node.Number("Width", glyph.Size.Width + 4) - 4) / glyph.Size.Width,
+                Math.Max(1, node.Number("Height", glyph.Size.Height + 4) - 4) / glyph.Size.Height));
+            var image = new Image { Source = glyph, Width = glyph.Size.Width * scale, Height = glyph.Size.Height * scale,
+                Stretch = Stretch.Uniform };
+            if (caption.Length == 0) button.Content = image;
+            else
+            {
+                var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+                content.Children.Add(image);
+                content.Children.Add(new AccessText { Text = caption, VerticalAlignment = VerticalAlignment.Center });
+                button.Content = content;
+            }
+        }
         if (close)
             button.Click += (_, _) => window?.Close();
         else

@@ -1,4 +1,8 @@
 using System.Text;
+using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
@@ -75,9 +79,41 @@ var mainMenu = RecoveredFormLibrary.Get("MainForm").Root.Children.Single(node =>
 Check(mainMenu.Children.Count == 12, "Original top-level menu structure changed");
 Check(mainMenu.DescendantsAndSelf().Any(node => node.Text("Caption") == "ROM Loader"), "ROM Loader menu was not recovered");
 
+// Verify packaged glyphs against the original catalog, without requiring MFME.exe.
+var glyphNodes = catalog.Forms.SelectMany(form => form.Root.DescendantsAndSelf())
+    .Where(node => node.Properties.ContainsKey("Glyph.Data")).ToArray();
+Check(glyphNodes.Length == 41, "Unexpected glyph reference count");
+foreach (var node in glyphNodes)
+{
+    var metadata = node.Properties["Glyph.Data"].Value!;
+    var hash = metadata["sha256"]!.GetValue<string>();
+    using var stream = AssetLoader.Open(new Uri($"avares://OpenMFME.Desktop/Assets/recovered-images/{hash}.bmp"));
+    using var bytes = new MemoryStream(); stream.CopyTo(bytes);
+    using var wrapper = new MemoryStream();
+    using (var writer = new BinaryWriter(wrapper, Encoding.UTF8, true))
+    { writer.Write((int)bytes.Length); writer.Write(bytes.ToArray()); }
+    Check(Convert.ToHexString(SHA256.HashData(wrapper.ToArray())).ToLowerInvariant() == hash,
+        $"Packaged glyph differs from source: {node.InstanceName}");
+    foreach (var disabled in new[] { false, true })
+    {
+        var glyph = RecoveredGraphics.Glyph(node, disabled) as WriteableBitmap;
+        Check(glyph is not null, $"Missing glyph: {node.InstanceName}");
+        using var decoded = new Bitmap(new MemoryStream(bytes.ToArray()));
+        Check(glyph!.PixelSize.Width * (int)node.Number("NumGlyphs", 1) == decoded.PixelSize.Width &&
+            glyph.PixelSize.Height == decoded.PixelSize.Height, "Glyph frame cropping failed");
+        using var framebuffer = glyph.Lock();
+        Check(Marshal.ReadByte(framebuffer.Address, (glyph.PixelSize.Height - 1) * framebuffer.RowBytes + 3) == 0,
+            "Glyph background transparency failed");
+    }
+}
+var configFactory = new RecoveredFormFactory();
+var configPreview = configFactory.CreateWindow(RecoveredFormLibrary.Get("Config"));
+Check(!configFactory.UnsupportedClasses.Contains("TzcLightOnOff"), "DIP preview still uses a class placeholder");
+configPreview.Close();
+
 var renderDirectory = args.Length == 2 && args[0] == "--render-dir" ? Path.GetFullPath(args[1]) : null;
 if (renderDirectory is not null) Directory.CreateDirectory(renderDirectory);
-var renderForms = new[] { "AlignmentForm", "GeneralConfig", "GameNotes", "Config", "SizeForm", "SnapForm" };
+var renderForms = new[] { "AlignmentForm", "GeneralConfig", "GameNotes", "Config", "SizeForm", "SnapForm", "GraphicEditorForm", "PlatformForm", "PropertiesForm", "ReelEditorForm" };
 foreach (var form in catalog.Forms)
 {
     var factory = new RecoveredFormFactory();

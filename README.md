@@ -9,9 +9,10 @@ A runnable C# / Avalonia UI reconstruction:
 - MFME's recovered main menu structure and meter strip.
 - A searchable browser with first-pass previews of all 66 recovered forms.
 - Standard controls reconstructed from their saved captions, geometry, properties and child hierarchy.
+- Restored button glyphs, colour swatches, empty artwork canvases and inferred DIP-switch previews.
 - Read-only inspection of MFME `.gam` metadata.
 
-This is an interface milestone. Original commands and emulation are not implemented. Previews allow temporary edits to fields and selections; they do not save settings or modify layouts. Unimplemented commands are disabled. Custom graphics and controls are explicit placeholders.
+This is an interface milestone. Original commands and emulation are not implemented. Previews allow temporary edits to fields and selections; they do not save settings or modify layouts. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
 
 The recorded form streams contain 4,464 components. See [the generated recovery report](docs/form-recovery.md) and [architecture notes](docs/architecture.md) for scope and limitations.
 
@@ -36,7 +37,7 @@ Open **UI reconstruction → Browse all recovered forms** to preview the origina
 dotnet run --project tests/OpenMFME.SmokeTests -c Release
 ```
 
-The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, and preview command behavior. Optional screenshots:
+The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping and transparency. Optional screenshots:
 
 ```powershell
 dotnet run --project tests/OpenMFME.SmokeTests -c Release -- --render-dir artifacts/previews
@@ -47,10 +48,10 @@ dotnet run --project tests/OpenMFME.SmokeTests -c Release -- --render-dir artifa
 The original MFME executable is not needed to run OpenMFME. To reproduce the extraction from a local reference executable:
 
 ```powershell
-dotnet run --project tools/OpenMFME.ExtractForms -- C:/path/to/MFME.exe src/OpenMFME.Desktop/Assets/recovered-forms.json docs/form-recovery.md
+dotnet run --project tools/OpenMFME.ExtractForms -- C:/path/to/MFME.exe src/OpenMFME.Desktop/Assets/recovered-forms.json docs/form-recovery.md src/OpenMFME.Desktop/Assets/recovered-images
 ```
 
-Extraction treats the executable as data and never runs it. The source hash and file offsets tie each observation to that executable. Binary resources are recorded as hashes and ranges rather than bundled payloads.
+Extraction treats the executable as data and never runs it. The source hash and file offsets tie each observation to that executable. The catalog records binary hashes and ranges. The optional image-directory argument extracts 41 glyph references (14 distinct bitmaps), the original icon and two image-list containers. See [graphics recovery](docs/graphics-recovery.md) for what is rendered and what remains archived.
 
 ## Structure
 
@@ -61,7 +62,7 @@ Extraction treats the executable as data and never runs it. The source hash and 
 
 ## Next milestones
 
-1. Recover embedded graphics and implement custom-control equivalents.
+1. Decode archived image-list masks and implement remaining custom-control equivalents.
 2. Improve fonts, docking, inherited properties and runtime-populated tabs/lists.
 3. Replace preview-only actions with independently implemented UI behavior.
 4. Connect a separately testable emulation engine, starting with Astra / Party Time Player.

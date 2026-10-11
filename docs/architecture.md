@@ -20,8 +20,8 @@ Relevant format references: [Embarcadero ObjectBinaryToText](https://docwiki.emb
 
 - Original handler names are preserved as references, not recovered implementations.
 - Nonvisual components (timers, dialogs, HTTP clients, image lists) are inventoried but not started.
-- Embedded binary assets are represented by length, offset and SHA-256. They are not bundled.
-- Custom visual components, image canvases, and runtime-populated list/tree views use placeholders.
+- Embedded binary assets retain their length, offset and SHA-256. Glyph bitmaps are bundled and rendered; the icon and two image-list containers are archived. See [graphics recovery](graphics-recovery.md).
+- Colour swatches and empty image canvases are reconstructed. DIP-switch appearance is inferred rather than recovered from custom-control code. Remaining custom visual components and runtime-populated list/tree views use placeholders.
 - Saved visibility, captions, explicit geometry, enabled state and common field values are mapped. Docking, inherited font/property behavior and many specialized properties remain approximate.
 - Runtime-generated tabs and data cannot be reconstructed from DFM alone. For example, the saved Game Configuration tab list contains only “None”; the original code populates it later.
 - Fields and selections can be edited temporarily. Original commands are disabled except closing a preview. No settings, layouts or ROM files are modified.

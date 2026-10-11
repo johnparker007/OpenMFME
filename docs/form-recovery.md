@@ -4,7 +4,7 @@ Source SHA-256: `221930f420cafd99cfc6931f11a26f9d42267986e568a556f1f48331ff852af
 
 66 complete streams; 4464 components; 1 rejected signature.
 
-This catalog preserves form/control trees, typed properties and event references. Binary payloads are represented by file offsets, lengths and hashes; images are not included. Original handlers are not recovered executable source.
+This catalog preserves form/control trees, typed properties and event references. Binary payloads are represented by file offsets, lengths and hashes; images are extracted separately when an image-directory argument is supplied. Original handlers are not recovered executable source.
 
 | Form | Caption | Components | Event references |
 |---|---|---:|---:|

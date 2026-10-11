@@ -2,9 +2,9 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using OpenMFME.Formats;
 
-if (args.Length is < 2 or > 3)
+if (args.Length is < 2 or > 4)
 {
-    Console.Error.WriteLine("Usage: OpenMFME.ExtractForms <MFME.exe> <output.json> [report.md]");
+    Console.Error.WriteLine("Usage: OpenMFME.ExtractForms <MFME.exe> <output.json> [report.md] [image-directory]");
     return 2;
 }
 var bytes = File.ReadAllBytes(args[0]);
@@ -35,14 +35,14 @@ Console.WriteLine($"Parsed {forms.Count} complete form streams; rejected {failur
 Console.WriteLine($"Recovered {forms.Sum(form => form.Root.DescendantsAndSelf().Count())} components.");
 foreach (var failure in failures)
     Console.WriteLine($"{failure.FileOffset}: {failure.Error}");
-if (args.Length == 3)
+if (args.Length >= 3)
 {
     var lines = new List<string>
     {
         "# Recovered MFME form streams", "",
         $"Source SHA-256: `{catalog.SourceSha256}`.", "",
         $"{forms.Count} complete streams; {forms.Sum(form => form.Root.DescendantsAndSelf().Count())} components; {failures.Count} rejected signature.", "",
-        "This catalog preserves form/control trees, typed properties and event references. Binary payloads are represented by file offsets, lengths and hashes; images are not included. Original handlers are not recovered executable source.", "",
+        "This catalog preserves form/control trees, typed properties and event references. Binary payloads are represented by file offsets, lengths and hashes; images are extracted separately when an image-directory argument is supplied. Original handlers are not recovered executable source.", "",
         "| Form | Caption | Components | Event references |",
         "|---|---|---:|---:|"
     };
@@ -61,4 +61,5 @@ if (args.Length == 3)
     Directory.CreateDirectory(Path.GetDirectoryName(report)!);
     File.WriteAllLines(report, lines);
 }
+if (args.Length == 4) ImageAssetExporter.Export(bytes, catalog, Path.GetFullPath(args[3]));
 return forms.Count == 0 ? 1 : 0;
