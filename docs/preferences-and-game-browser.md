@@ -18,6 +18,10 @@ Only .gam files are inspected; extension matching is case insensitive. Recursive
 
 Scanning uses a worker task, cancellation and progress messages. Cancellation is checked between enumeration/file operations; an operating-system read or network-folder enumeration already in progress may take time to return. There is no persistent library database yet: every refresh rereads metadata. The issue view displays the first 100 reports; its total count includes all reports.
 
+Find opens the recovered ManagerFindForm design. Enter a name and choose Find (or press Enter) to select the next matching game in the current visible list, wrapping at the end. It leaves the list filters unchanged and reports when no name matches. Escape closes the window.
+
+Filter opens the recovered FilterForm design. Name and platform checkboxes narrow the list immediately; Clear All and Select All affect the displayed platforms, Reset clears these dialog filters, and Refresh rescans configured folders. Dialog filters intersect with the toolbar search/system filter. They survive closing/reopening the dialog during the current Game Manager session; new platforms found by a scan start included. Tags, WIP/non-runner and layout categories remain disabled until their metadata is supported. Closing Game Manager closes its owned dialogs.
+
 Search matches game name, system and configuration path. The system filter narrows results. Selecting a game shows its game/system/protocol fields, layout filename, ROM filenames and configuration path. Open layout information (or double-click) updates the main window and closes the browser. No ROM execution, artwork loading, file association or layout conversion is performed.
 
 ## Metadata reader

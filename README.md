@@ -12,7 +12,7 @@ A runnable C# / Avalonia UI reconstruction:
 - Restored button glyphs, colour swatches, empty artwork canvases and inferred DIP-switch previews.
 - Inherited fonts, compact range controls and tab headers, common docking/anchors and saved tab order.
 - Saved OpenMFME preferences for game folders, subfolder scanning and opening the browser at startup.
-- A searchable game browser with system filtering and read-only `.gam` layout information.
+- A Game Manager with recovered Find/Filter dialogs, name/platform filtering and read-only `.gam` layout information.
 
 This is an interface milestone. Preferences and game browsing are independent OpenMFME features; original emulation and editing commands are not implemented. Recovered-form previews allow temporary edits; the separate working preferences window saves OpenMFME settings. Game configurations, layouts and ROMs are never modified by these features. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
 

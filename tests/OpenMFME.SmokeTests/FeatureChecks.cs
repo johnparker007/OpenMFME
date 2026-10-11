@@ -3,6 +3,7 @@ using System.Text;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using OpenMFME.Desktop;
@@ -190,6 +191,54 @@ internal static class FeatureChecks
         check(ReferenceEquals(main.GameManager, browser), "Game Manager was duplicated on repeated open");
         var list = Named<ListBox>(browser, "GamesList");
         check(list.ItemsSource!.Cast<GameMetadata>().Count() == 3, "Browser did not show scanned games");
+        var findMenu = menus.Single(item => item.Name == "Find");
+        findMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var findWindow = browser.OwnedWindows.Single(window => window.Title == "Find");
+        findMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        check(browser.OwnedWindows.Count(window => window.Title == "Find") == 1, "Find window duplicated");
+        check(!Named<Button>(findWindow, "Find").IsEnabled, "Blank Find query enabled");
+        Named<TextBox>(findWindow, "Name").Text = "party";
+        Click(findWindow, "Find"); var firstMatch = list.SelectedItem;
+        Click(findWindow, "Find"); var secondMatch = list.SelectedItem;
+        Click(findWindow, "Find");
+        check(firstMatch is GameMetadata && !ReferenceEquals(firstMatch, secondMatch) && ReferenceEquals(list.SelectedItem, firstMatch),
+            "Find did not cycle and wrap matching names");
+        Named<TextBox>(findWindow, "Name").Text = "missing-name"; Click(findWindow, "Find");
+        check(ReferenceEquals(list.SelectedItem, firstMatch) && Named<TextBlock>(findWindow, "DialogMessage").Text!.Contains("No matching"),
+            "Find missing-name handling failed");
+        Named<TextBox>(findWindow, "Name").Text = "party"; Dispatcher.UIThread.RunJobs();
+        findWindow.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        findWindow.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        check(ReferenceEquals(list.SelectedItem, secondMatch), "Enter did not perform Find Next");
+        Snapshot(findWindow, renderDirectory, "ManagerFind");
+        findWindow.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        check(!findWindow.IsVisible, "Escape did not close Find");
+        var filterMenu = menus.Single(item => item.Name == "Filter");
+        filterMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var filterWindow = browser.OwnedWindows.Single(window => window.Title == "Filters");
+        filterMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        check(browser.OwnedWindows.Count(window => window.Title == "Filters") == 1, "Filter window duplicated");
+        Named<TextBox>(filterWindow, "FilterName").Text = "Party"; Dispatcher.UIThread.RunJobs();
+        check(list.ItemsSource!.Cast<GameMetadata>().Count() == 2, "Recovered name filter failed");
+        var platform = filterWindow.GetVisualDescendants().OfType<CheckBox>().Single(control => Equals(control.Tag, "LEGACY"));
+        platform.IsChecked = false;
+        check(list.ItemsSource!.Cast<GameMetadata>().Single().System == "ASTRASYSA1", "Platform exclusion failed");
+        Snapshot(filterWindow, renderDirectory, "ManagerFilter");
+        filterWindow.Close(); filterMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        filterWindow = browser.OwnedWindows.Single(window => window.Title == "Filters");
+        check(Named<TextBox>(filterWindow, "FilterName").Text == "Party" &&
+            filterWindow.GetVisualDescendants().OfType<CheckBox>().Single(control => Equals(control.Tag, "LEGACY")).IsChecked == false,
+            "Reopened Filter lost its state");
+        check(new[] { "ClearAllButton", "SelectAllButton", "ResetButton", "RefreshButton" }.All(name => Named<Button>(filterWindow, name).IsEnabled),
+            "Working filter commands remain disabled");
+        Click(filterWindow, "ClearAllButton"); check(!list.ItemsSource!.Cast<GameMetadata>().Any(), "Clear All platforms failed");
+        Click(filterWindow, "SelectAllButton"); check(list.ItemsSource!.Cast<GameMetadata>().Count() == 2, "Select All platforms failed");
+        Click(filterWindow, "ResetButton"); Dispatcher.UIThread.RunJobs(); check(list.ItemsSource!.Cast<GameMetadata>().Count() == 3, "Filter Reset failed");
+        check(!Named<ComboBox>(filterWindow, "FilterTags").IsEnabled && !Named<CheckBox>(filterWindow, "DXs").IsEnabled,
+            "Unsupported filter options are enabled");
+        Click(filterWindow, "RefreshButton"); Pump(browser.ScanCompletion);
+        check(list.ItemsSource!.Cast<GameMetadata>().Count() == 3, "Filter Refresh lost game list");
+        filterWindow.Close();
         Named<TextBox>(browser, "GameSearch").Text = "Party"; Dispatcher.UIThread.RunJobs();
         check(list.ItemsSource!.Cast<GameMetadata>().Count() == 2, "Game search failed");
         Named<ComboBox>(browser, "SystemFilter").SelectedItem = "ASTRASYSA1"; Dispatcher.UIThread.RunJobs();
@@ -211,7 +260,12 @@ internal static class FeatureChecks
             .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         check(main.IsVisible && main.GameManager is null, "Manager Exit did not restore main window");
         managerEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
-        main.GameManager!.Close();
+        var closingManager = main.GameManager!;
+        Named<Menu>(closingManager, "ManagerMenu").ItemsSource!.Cast<MenuItem>().Single(item => item.Name == "Filter")
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var closingFilter = closingManager.OwnedWindows.Single(window => window.Title == "Filters");
+        closingManager.Close();
+        check(!closingFilter.IsVisible, "Closing Game Manager left its Filter window open");
         check(main.IsVisible && main.GameManager is null, "Manager window close did not restore main window");
         main.Close();
         store.Save(store.Current with { OpenGameBrowserOnStartup = true });

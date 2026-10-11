@@ -30,6 +30,10 @@ public sealed class GameBrowserWindow : Window
     private string[] scanWarnings = [];
     private CancellationTokenSource? scan;
     private bool closed;
+    private GameManagerFind? findDialog;
+    private GameManagerFilter? filterDialog;
+    private string nameFilter = "";
+    private readonly HashSet<string> excludedPlatforms = new(StringComparer.OrdinalIgnoreCase);
     public Task ScanCompletion { get; private set; } = Task.CompletedTask;
 
     public GameBrowserWindow(SettingsStore store, Action<GameMetadata> inspect, Func<Task> preferences)
@@ -96,13 +100,45 @@ public sealed class GameBrowserWindow : Window
     private Action? ResolveMenuAction(DfmComponent item) => item.Text("OnClick") switch
     {
         "ExitManagerClick" => Close,
-        "FindClick" => () => search.Focus(),
-        "FilterClick" => () => systems.Focus(),
+        "FindClick" => OpenFind,
+        "FilterClick" => OpenFilter,
         "ScanDirectoryClick" => BeginScan,
         "SetGameDirectoryClick" => async () => await preferences(),
         "SetMainFolder1Click" => async () => await new PreferencesWindow(store, mainFolderOnly: true).ShowDialog<bool>(this),
         _ => null
     };
+
+    private void OpenFind()
+    {
+        if (findDialog is not null) { findDialog.Window.Activate(); return; }
+        findDialog = new GameManagerFind(FindNext);
+        findDialog.Window.Closed += (_, _) => findDialog = null;
+        findDialog.Window.Show(this);
+    }
+
+    private bool FindNext(string query)
+    {
+        var visible = list.ItemsSource!.Cast<GameMetadata>().ToArray();
+        if (visible.Length == 0) return false;
+        var start = Array.IndexOf(visible, list.SelectedItem as GameMetadata);
+        for (var offset = 1; offset <= visible.Length; offset++)
+        {
+            var candidate = visible[(start + offset) % visible.Length];
+            if (!candidate.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)) continue;
+            list.SelectedItem = candidate; list.ScrollIntoView(candidate); return true;
+        }
+        return false;
+    }
+
+    private void OpenFilter()
+    {
+        if (filterDialog is not null) { filterDialog.Window.Activate(); return; }
+        filterDialog = new GameManagerFilter(nameFilter, excludedPlatforms,
+            value => { nameFilter = value; Filter(); }, Filter, BeginScan);
+        filterDialog.UpdatePlatforms(games.Select(game => game.System));
+        filterDialog.Window.Closed += (_, _) => filterDialog = null;
+        filterDialog.Window.Show(this);
+    }
 
     private void SettingsChanged(object? sender, EventArgs e) => BeginScan();
     private void BeginScan() => ScanCompletion = ReloadAsync();
@@ -127,6 +163,7 @@ public sealed class GameBrowserWindow : Window
             var result = await GameLibraryScanner.ScanAsync(store.Current.GameFolders, store.Current.IncludeSubfolders, token, progress);
             if (closed || !ReferenceEquals(scan, current)) return;
             games = result.Games; scanWarnings = result.Warnings;
+            filterDialog?.UpdatePlatforms(games.Select(game => game.System));
             warnings.Text = scanWarnings.Length == 0 ? "No issues reported. Inaccessible subfolders and directory links are skipped."
                 : string.Join(Environment.NewLine, scanWarnings.Take(100)) + (scanWarnings.Length > 100 ? "\nFurther issues omitted from this view." : "");
             var previousSystem = systems.SelectedItem as string;
@@ -152,7 +189,8 @@ public sealed class GameBrowserWindow : Window
         var query = search.Text?.Trim() ?? "";
         var system = systems.SelectedItem as string;
         var selected = list.SelectedItem as GameMetadata;
-        var visible = games.Where(game => (system is null or "All systems" || game.System.Equals(system, StringComparison.OrdinalIgnoreCase)) &&
+        var visible = games.Where(game => !excludedPlatforms.Contains(game.System) &&
+            game.DisplayName.Contains(nameFilter, StringComparison.OrdinalIgnoreCase) && (system is null or "All systems" || game.System.Equals(system, StringComparison.OrdinalIgnoreCase)) &&
             $"{game.DisplayName} {game.System} {game.FilePath}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
         list.ItemsSource = visible;
         if (selected is not null) list.SelectedItem = visible.FirstOrDefault(game => GameLibraryScanner.PathComparer.Equals(game.FilePath, selected.FilePath));
