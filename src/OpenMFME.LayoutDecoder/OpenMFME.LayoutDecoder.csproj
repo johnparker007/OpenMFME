@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><Nullable>disable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><Compile Include="../../third_party/mfme-fml-decoder/src/**/*.cs" Link="Upstream/%(RecursiveDir)%(Filename)%(Extension)" /></ItemGroup>
+</Project>

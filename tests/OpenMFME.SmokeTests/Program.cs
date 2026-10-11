@@ -126,6 +126,7 @@ for (var index = 0; index < args.Length; index += 2)
 }
 if (renderDirectory is not null) Directory.CreateDirectory(renderDirectory);
 FeatureChecks.Run(Check, renderDirectory, sampleGame);
+LayoutChecks.Run(Check, renderDirectory, sampleGame);
 var renderForms = new[] { "AlignmentForm", "GeneralConfig", "GameNotes", "Config", "SizeForm", "SnapForm", "GraphicEditorForm", "PlatformForm", "PropertiesForm", "ReelEditorForm" };
 foreach (var form in catalog.Forms)
 {

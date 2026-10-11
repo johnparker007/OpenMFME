@@ -12,6 +12,8 @@ public partial class MainWindow : Window
 {
     private readonly SettingsStore settings;
     private GameBrowserWindow? gameBrowser;
+    private GameMetadata? selectedGame;
+    public LayoutPreviewWindow? LayoutPreview { get; private set; }
     private bool startupHandled;
     private bool closing;
     public GameBrowserWindow? GameManager => gameBrowser;
@@ -48,6 +50,7 @@ public partial class MainWindow : Window
     {
         var handler = item.Text("OnClick");
         if (handler == "GameManager1Click") return OpenGameBrowser;
+        if (handler == "LoadLayoutClick") return () => OpenFml_Click(this, new RoutedEventArgs());
         if (handler == "LoadGame1Click")
             return () => OpenLayout_Click(this, new RoutedEventArgs());
         if (handler is "Exit1Click" or "ExitWithoutSave1Click")
@@ -114,9 +117,43 @@ public partial class MainWindow : Window
 
     private void InspectGame(GameMetadata game)
     {
+        selectedGame = game;
+        ViewGameLayout.IsEnabled = !string.IsNullOrWhiteSpace(game.Layout);
         LayoutSummary.Text = game.Summary;
         StatusText.Text = $"Inspecting {game.DisplayName} · Emulation not connected";
         Activate();
+    }
+
+    public void PreviewLayout(string path)
+    {
+        if (LayoutPreview is not null) { LayoutPreview.Close(); }
+        var preview = new LayoutPreviewWindow(path);
+        LayoutPreview = preview;
+        preview.Closed += (_, _) => { if (ReferenceEquals(LayoutPreview, preview)) LayoutPreview = null; };
+        preview.Show(this);
+    }
+
+    private void ViewGameLayout_Click(object? sender, RoutedEventArgs e)
+    {
+        if (selectedGame is null || string.IsNullOrWhiteSpace(selectedGame.Layout)) return;
+        try { PreviewLayout(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(selectedGame.FilePath)!, selectedGame.Layout))); }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        { StatusText.Text = "Unable to locate layout: " + exception.Message; }
+    }
+
+    private async void OpenFml_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var selected = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Open MFME v20.1 layout preview", AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType("MFME layout") { Patterns = ["*.fml"] }]
+            });
+            if (selected.Count > 0 && selected[0].TryGetLocalPath() is { } path) PreviewLayout(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        { await ShowMessage("Unable to preview layout", exception.Message); }
     }
 
     private void OpenGameBrowser()

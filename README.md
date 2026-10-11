@@ -15,6 +15,7 @@ A runnable C# / Avalonia UI reconstruction:
 - A Game Manager with recovered Find/Filter and Game Notes dialogs, name/platform filtering and read-only `.gam` layout information.
 - Saved per-game details and comments, with a Notes tab and editable display names.
 - A Game Manager report table with all 15 recovered columns, resizing, name/technology sorting, four preview tabs and working View commands.
+- Read-only MFME v20.1 FML previews with saved artwork, labels, component outlines, a property inspector and Fit/100% views.
 
 This is an interface milestone. Preferences and game browsing are independent OpenMFME features; original emulation and editing commands are not implemented. Recovered-form previews allow temporary edits; the separate working preferences window saves OpenMFME settings. Game configurations, layouts and ROMs are never modified by these features. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
 
@@ -35,6 +36,8 @@ The application targets .NET 8 and Avalonia 12.1.4. NuGet restores packages on t
 
 Select **Game Manager** to enter its own window and menus; the main window is hidden until you exit. Use **Database → Set Main Game Folder** or **Additional Game Folders**, apply your folder choices, and choose **Save**. **Database → Scan All** rescans the library. **Exit** or the window close button returns to the main window. Search/filter the list, select a game, then choose **Open layout information** to view it in the main window. **File → Load Game** also inspects a single configuration file. Games cannot be played yet.
 
+To preview a cabinet, choose **File → Load Layout** or **Open FML preview…** and select a v20.1 `.fml` file. After inspecting a game configuration, **View selected layout** opens its associated layout. Background/bitmap artwork and labels render; reels, lamps and displays currently have inspectable outlines. See [FML layout previews](docs/fml-layout-preview.md).
+
 Open **UI reconstruction → Browse all recovered forms** to preview the original windows, including the original Preferences and Game Manager designs. **File → Preferences** opens the recovered MFME Preferences form. Other mapped menu entries, such as **Configuration**, also open previews.
 
 Preferences are stored in the current user's local application-data directory under `OpenMFME/settings.json` (usually `%LOCALAPPDATA%\OpenMFME\settings.json` on Windows). Cancel leaves saved preferences unchanged. An open browser refreshes after preferences are saved. See [working preferences and game browsing](docs/preferences-and-game-browser.md).
@@ -45,7 +48,7 @@ Preferences are stored in the current user's local application-data directory un
 dotnet run --project tests/OpenMFME.SmokeTests -c Release
 ```
 
-The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping, transparency, font inheritance, resizing, keyboard/control input, saved preferences, metadata decoding, folder scanning and browser interaction. Optional screenshots:
+The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping, transparency, font inheritance, resizing, keyboard/control input, saved preferences, metadata decoding, folder scanning, browser interaction, upstream FML decoder fixtures and layout preview behavior. Optional screenshots:
 
 ```powershell
 dotnet run --project tests/OpenMFME.SmokeTests -c Release -- --render-dir artifacts/previews
@@ -65,6 +68,8 @@ Extraction treats the executable as data and never runs it. The source hash and 
 
 - `src/OpenMFME.Desktop`: application, form browser and standard-control mapper.
 - `src/OpenMFME.Formats`: UI-independent form model and binary DFM parser.
+- `src/OpenMFME.LayoutDecoder`: read-only FML decoding and UI-independent layout data.
+- `third_party/mfme-fml-decoder`: pinned decoder source by Paul Maidment and John Parker, reused with author permission; see its attribution record.
 - `tools/OpenMFME.ExtractForms`: extraction command and report generator.
 - `tests/OpenMFME.SmokeTests`: parser checks and headless UI/rendering checks.
 
@@ -72,5 +77,5 @@ Extraction treats the executable as data and never runs it. The source hash and 
 
 1. Decode archived image-list masks and implement remaining custom-control equivalents.
 2. Recover runtime-populated tabs/lists and remaining inherited properties/client-area defaults.
-3. Add useful game-library actions and remaining independently implemented UI behavior.
+3. Render saved reel bands, lamp artwork and displays from the decoded layout model, alongside remaining game-library actions.
 4. Connect a separately testable emulation engine, starting with Astra / Party Time Player.

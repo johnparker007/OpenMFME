@@ -4,4 +4,5 @@
     <ProjectReference Include="../../src/OpenMFME.Desktop/OpenMFME.Desktop.csproj" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.4" />
   </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Fixtures/layouts/**" /></ItemGroup>
 </Project>
