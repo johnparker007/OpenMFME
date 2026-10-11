@@ -12,8 +12,7 @@ namespace OpenMFME.Desktop;
 public sealed class LayoutPreviewWindow : Window
 {
     private readonly CancellationTokenSource cancellation = new();
-    private readonly List<Bitmap> bitmaps = [];
-    private readonly Dictionary<int, Border> outlines = [];
+    private LayoutSurface? surface;
     private readonly Border viewport = new() { Name = "LayoutViewport", Background = Brushes.DimGray };
     private readonly ListBox components = new() { Name = "LayoutComponents" };
     private readonly TextBlock properties = new() { Name = "LayoutComponentDetails", TextWrapping = TextWrapping.Wrap, FontSize = 11 };
@@ -57,8 +56,7 @@ public sealed class LayoutPreviewWindow : Window
         {
             closed = true; cancellation.Cancel();
             viewport.Child = null;
-            foreach (var bitmap in bitmaps) bitmap.Dispose();
-            bitmaps.Clear();
+            surface?.Dispose();
         };
     }
 
@@ -69,48 +67,9 @@ public sealed class LayoutPreviewWindow : Window
             var document = await Task.Run(() => FmlLayoutReader.Read(path, cancellation.Token), cancellation.Token);
             if (closed) return;
             Document = document;
-            canvas = new Canvas { Name = "LayoutCanvas", Width = document.Width, Height = document.Height, ClipToBounds = true };
-            var background = document.Components.FirstOrDefault(component => component.Type == "Background");
-            canvas.Background = ReadColour(background?.Properties["Values"]?["Colour"]?.GetValue<string>(), Brushes.LightGray);
-            var imageFailures = 0;
-            foreach (var component in document.Components)
-            {
-                if (component.Width == 0 || component.Height == 0) continue;
-                Control? visual = null;
-                if (component.Type is "Background" or "Bitmap")
-                {
-                    var image = component.Images.FirstOrDefault(item => item.Key == "background_image") ?? component.Images.FirstOrDefault();
-                    if (image is not null)
-                    {
-                        try
-                        {
-                            using var imageStream = new MemoryStream(image.Bytes, writable: false);
-                            var bitmap = new Bitmap(imageStream);
-                            bitmaps.Add(bitmap); visual = new Image { Source = bitmap, Stretch = Stretch.Fill };
-                        }
-                        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
-                        { imageFailures++; }
-                    }
-                }
-                else if (component.Type == "Label")
-                {
-                    var values = component.Properties["Values"];
-                    var text = values?["Label (UTF-16)"]?.GetValue<string>() ?? values?["Caption"]?.GetValue<string>() ?? values?["Label"]?.GetValue<string>() ?? "";
-                    var font = component.Properties["Fonts"]?["PrimaryFont"];
-                    visual = new TextBlock { Name = "LayoutLabel" + component.Index, Text = text,
-                        FontFamily = new FontFamily(font?["FontName"]?.GetValue<string>() ?? "Tahoma"),
-                        FontSize = Math.Clamp((font?["FontSize"]?.GetValue<double>() ?? 8) * 4 / 3, 6, 144),
-                        Foreground = ReadColour(font?["TextColour"]?.GetValue<string>(), Brushes.Black),
-                        Background = ReadColour(values?["BackgroundColour"]?.GetValue<string>(), Brushes.Transparent),
-                        TextWrapping = TextWrapping.Wrap };
-                }
-                if (visual is not null) Place(visual, component);
-                if (component.Type == "Background") continue;
-                var outline = new Border { Name = "ComponentOutline" + component.Index, BorderBrush = Brushes.DeepSkyBlue, BorderThickness = new Thickness(1), Background = Brushes.Transparent };
-                ToolTip.SetTip(outline, $"#{component.Index} {component.Type} · number {component.Number}");
-                outline.PointerPressed += (_, _) => components.SelectedItem = component;
-                outlines[component.Index] = outline; Place(outline, component);
-            }
+            surface = new LayoutSurface(document) { Selected = component => components.SelectedItem = component };
+            canvas = surface.Canvas;
+            var imageFailures = surface.ImageFailures;
             components.ItemsSource = document.Components;
             SetZoom(); UpdateOutlines();
             var offCanvas = document.Components.Count(component => component.X >= document.Width || component.Y >= document.Height);
@@ -122,14 +81,6 @@ public sealed class LayoutPreviewWindow : Window
         catch (OperationCanceledException) { }
         catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or OverflowException)
         { if (!closed) status.Text = "Unable to preview layout: " + exception.Message; }
-    }
-
-    private void Place(Control control, LayoutComponent component)
-    {
-        control.Width = component.Width; control.Height = component.Height;
-        Canvas.SetLeft(control, component.X); Canvas.SetTop(control, component.Y);
-        if (component.Angle != 0) control.RenderTransform = new RotateTransform(component.Angle);
-        canvas!.Children.Add(control);
     }
 
     private void SetZoom()
@@ -144,19 +95,6 @@ public sealed class LayoutPreviewWindow : Window
             : new Viewbox { Stretch = Stretch.Uniform, Child = canvas };
     }
 
-    private void UpdateOutlines()
-    {
-        foreach (var pair in outlines)
-        {
-            pair.Value.IsVisible = showBounds.IsChecked == true;
-            pair.Value.BorderBrush = components.SelectedItem is LayoutComponent selected && selected.Index == pair.Key ? Brushes.Yellow : Brushes.DeepSkyBlue;
-            pair.Value.BorderThickness = new Thickness(components.SelectedItem is LayoutComponent current && current.Index == pair.Key ? 2 : 1);
-        }
-    }
-
-    private static IBrush ReadColour(string? rgba, IBrush fallback)
-    {
-        if (rgba is null || rgba.Length != 9) return fallback;
-        return Color.TryParse("#" + rgba[7..9] + rgba[1..7], out var color) ? new SolidColorBrush(color) : fallback;
-    }
+    private void UpdateOutlines() => surface?.SetOutlines(showBounds.IsChecked == true,
+        (components.SelectedItem as LayoutComponent)?.Index);
 }

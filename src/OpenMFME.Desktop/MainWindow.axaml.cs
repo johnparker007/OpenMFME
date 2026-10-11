@@ -5,6 +5,8 @@ using Avalonia.Platform.Storage;
 using OpenMFME.Desktop.Reconstruction;
 using OpenMFME.Formats;
 using OpenMFME.Desktop.Services;
+using OpenMFME.LayoutDecoder;
+using Avalonia.Media;
 
 namespace OpenMFME.Desktop;
 
@@ -12,8 +14,15 @@ public partial class MainWindow : Window
 {
     private readonly SettingsStore settings;
     private GameBrowserWindow? gameBrowser;
-    private GameMetadata? selectedGame;
+    private LayoutSurface? layoutSurface;
+    private CancellationTokenSource? layoutCancellation;
+    public GameMetadata? SelectedGame { get; private set; }
+    public LayoutDocument? LoadedLayout { get; private set; }
+    public Task LayoutLoadCompletion { get; private set; } = Task.CompletedTask;
+    public string? LayoutLoadError { get; private set; }
+
     public LayoutPreviewWindow? LayoutPreview { get; private set; }
+    private MenuItem? layoutInspector;
     private bool startupHandled;
     private bool closing;
     public GameBrowserWindow? GameManager => gameBrowser;
@@ -30,7 +39,10 @@ public partial class MainWindow : Window
         var reconstruction = new MenuItem { Header = "UI reconstruction" };
         var browse = new MenuItem { Header = "Browse all recovered forms…" };
         browse.Click += (_, _) => new FormBrowserWindow().Show(this);
-        reconstruction.ItemsSource = new[] { browse };
+        var inspect = new MenuItem { Header = "Inspect loaded layout…", IsEnabled = false };
+        inspect.Click += (_, _) => { if (LoadedLayout is { } layout) PreviewLayout(layout.FilePath); };
+        layoutInspector = inspect;
+        reconstruction.ItemsSource = new[] { browse, inspect };
         items.Add(reconstruction);
         MainMenuBar.ItemsSource = items;
         var meters = original.Children.Single(child => child.InstanceName == "MeterPanel");
@@ -40,10 +52,14 @@ public partial class MainWindow : Window
         {
             if (startupHandled) return;
             startupHandled = true;
-            if (settings.LoadNotice is not null) StatusText.Text = settings.LoadNotice;
+            if (settings.LoadNotice is not null) _ = ShowMessage("OpenMFME preferences", settings.LoadNotice);
             if (settings.Current.OpenGameBrowserOnStartup) OpenGameBrowser();
         };
-        Closing += (_, _) => { closing = true; gameBrowser?.Close(); };
+        Closing += (_, _) =>
+        {
+            closing = true; gameBrowser?.Close(); layoutCancellation?.Cancel();
+            LayoutHost.Child = null; layoutSurface?.Dispose(); layoutSurface = null;
+        };
     }
 
     private Action? ResolveMenuAction(DfmComponent item)
@@ -98,7 +114,7 @@ public partial class MainWindow : Window
         {
             var selected = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Open MFME layout information",
+                Title = "Load MFME game",
                 AllowMultiple = false,
                 FileTypeFilter = [new FilePickerFileType("MFME game configuration") { Patterns = ["*.gam"] }]
             });
@@ -117,11 +133,62 @@ public partial class MainWindow : Window
 
     private void InspectGame(GameMetadata game)
     {
-        selectedGame = game;
-        ViewGameLayout.IsEnabled = !string.IsNullOrWhiteSpace(game.Layout);
-        LayoutSummary.Text = game.Summary;
-        StatusText.Text = $"Inspecting {game.DisplayName} · Emulation not connected";
+        SelectedGame = game;
         Activate();
+        if (string.IsNullOrWhiteSpace(game.Layout))
+        {
+            LayoutLoadError = "The game configuration does not name a layout.";
+            _ = ShowMessage("Unable to load layout", LayoutLoadError);
+            return;
+        }
+        try { LoadLayout(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(game.FilePath)!, game.Layout)), game.DisplayName); }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        { LayoutLoadError = exception.Message; _ = ShowMessage("Unable to locate layout", exception.Message); }
+    }
+
+    public void LoadLayout(string path, string? gameTitle = null)
+    {
+        layoutCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        layoutCancellation = cancellation;
+        LayoutLoadError = null;
+        LayoutLoadCompletion = LoadLayoutAsync(path, gameTitle, cancellation);
+    }
+
+    private async Task LoadLayoutAsync(string path, string? gameTitle, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var document = await Task.Run(() => FmlLayoutReader.Read(path, cancellation.Token), cancellation.Token);
+            if (closing || cancellation.IsCancellationRequested) return;
+            var surface = new LayoutSurface(document);
+            LayoutHost.Child = null;
+            layoutSurface?.Dispose(); layoutSurface = surface;
+            LayoutHost.Child = new Viewbox
+            {
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                Child = surface.Canvas
+            };
+            LoadedLayout = document;
+            Title = gameTitle ?? Path.GetFileNameWithoutExtension(path);
+            layoutInspector!.IsEnabled = true;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or OverflowException)
+        {
+            if (!closing && !cancellation.IsCancellationRequested)
+            {
+                LayoutLoadError = exception.Message;
+                _ = ShowMessage("Unable to load layout", exception.Message);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(layoutCancellation, cancellation)) layoutCancellation = null;
+            cancellation.Dispose();
+        }
     }
 
     public void PreviewLayout(string path)
@@ -133,24 +200,16 @@ public partial class MainWindow : Window
         preview.Show(this);
     }
 
-    private void ViewGameLayout_Click(object? sender, RoutedEventArgs e)
-    {
-        if (selectedGame is null || string.IsNullOrWhiteSpace(selectedGame.Layout)) return;
-        try { PreviewLayout(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(selectedGame.FilePath)!, selectedGame.Layout))); }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
-        { StatusText.Text = "Unable to locate layout: " + exception.Message; }
-    }
-
     private async void OpenFml_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
             var selected = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Open MFME v20.1 layout preview", AllowMultiple = false,
+                Title = "Load MFME v20.1 layout", AllowMultiple = false,
                 FileTypeFilter = [new FilePickerFileType("MFME layout") { Patterns = ["*.fml"] }]
             });
-            if (selected.Count > 0 && selected[0].TryGetLocalPath() is { } path) PreviewLayout(path);
+            if (selected.Count > 0 && selected[0].TryGetLocalPath() is { } path) LoadLayout(path);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         { await ShowMessage("Unable to preview layout", exception.Message); }
@@ -170,10 +229,6 @@ public partial class MainWindow : Window
         try { manager.Show(); Hide(); }
         catch { gameBrowser = null; manager.Close(); Show(); throw; }
     }
-
-    private void Games_Click(object? sender, RoutedEventArgs e) => OpenGameBrowser();
-
-    private void Forms_Click(object? sender, RoutedEventArgs e) => new FormBrowserWindow().Show(this);
 
     private async void About_Click(object? sender, RoutedEventArgs e) =>
         await ShowMessage("About OpenMFME",

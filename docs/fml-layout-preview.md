@@ -2,9 +2,11 @@
 
 ## Opening a layout
 
-Choose **File → Load Layout** or **Open FML preview…** in the main window and select a `.fml` file. Alternatively, inspect a `.gam` configuration through File → Load Game or the Game Manager, then choose **View selected layout**.
+The main window starts with a blank canvas directly beneath the meter strip, with no welcome content, sidebar or bottom status bar. Choose **File → Load Layout** and select a `.fml` file. **File → Load Game**, or **Load game** / double-click in Game Manager, reads a `.gam` and automatically loads its associated FML into the main canvas. The title updates when loading succeeds. Artwork fits the available area with its aspect ratio preserved and starts at the top left.
 
-The viewer displays background and bitmap artwork, saved labels and optional component outlines. Select a component in the list or click its outline to inspect decoded properties, including reel band offsets and lamp assignments. **Fit** scales the saved canvas to the window; **100%** uses scrollbars at native layout size.
+The main canvas shows background/bitmap artwork and saved labels without diagnostic outlines. **UI reconstruction → Inspect loaded layout…** opens the separate diagnostic viewer. Select a component in its list or click its outline to inspect decoded properties, including reel band offsets and lamp assignments. **Fit** scales the saved canvas to the window; **100%** uses scrollbars at native layout size.
+
+Loads run in the background. A new load cancels an earlier pending load; closing cancels loading and releases bitmap resources. A failed load reports its error in a dialog and preserves the current canvas. Neither flow runs ROMs.
 
 ## Decoder provenance
 
@@ -32,7 +34,7 @@ The supplied `Party_Time_Player_(Astra)_[Dx02_5jp].gam` and associated v20.1 FML
 
 Ten components are outside the saved background. The preview clips artwork and outlines to the saved canvas, while the inspector retains all components. No ROM is loaded or executed. The headless check compares the FML hash before and after viewing to verify it is unchanged. The game layout and ROMs are not bundled in this repository.
 
-Five small upstream fixtures cover Background, Lamp, Reel, Label and Button decoding, including angled controls. Tests compare decoded property trees against upstream JSON, normalizing only the zero background OffsetX/OffsetY defaults introduced by the pinned revision. Viewer checks cover labels, missing files, selection, zoom, outlines, closing during loading and the Game Manager-to-main-window preview route.
+Five small upstream fixtures cover Background, Lamp, Reel, Label and Button decoding, including angled controls. Tests compare decoded property trees against upstream JSON, normalizing only the zero background OffsetX/OffsetY defaults introduced by the pinned revision. Viewer checks cover labels, missing files, selection, zoom, outlines, closing during loading and blank startup, direct main-canvas loading, Game Manager routing, resizing, replacement loads, failed-load preservation and closing during a load.
 
 To run the optional real-layout checks and export a preview:
 

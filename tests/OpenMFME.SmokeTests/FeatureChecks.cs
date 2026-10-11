@@ -366,7 +366,7 @@ internal static class FeatureChecks
         list.SelectedIndex = 0; Dispatcher.UIThread.RunJobs();
         Snapshot(browser, renderDirectory, "GameBrowser");
         Click(browser, "InspectGame");
-        check(main.IsVisible && !browser.IsVisible && main.FindControl<TextBlock>("LayoutSummary")!.Text!.Contains("Party Time Player"),
+        check(main.IsVisible && !browser.IsVisible && main.SelectedGame?.DisplayName.Contains("Party Time Player") == true,
             "Inspecting a library game did not update the main window");
         managerEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
         var exiting = main.GameManager!;
@@ -388,7 +388,8 @@ internal static class FeatureChecks
         check(!startupMain.IsVisible && startupManager.IsVisible, "Startup Game Manager did not hide main window");
         startupManager.Close(); Dispatcher.UIThread.RunJobs();
         check(startupMain.IsVisible && startupMain.GameManager is null, "Exiting startup manager reopened it");
-        startupMain.FindControl<Button>("BrowseGames")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        startupMain.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>().Single(item => item.Header?.ToString() == "Game Manager")
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         var shutdownManager = startupMain.GameManager!;
         startupMain.Close(); Dispatcher.UIThread.RunJobs();
         Pump(shutdownManager.ScanCompletion);

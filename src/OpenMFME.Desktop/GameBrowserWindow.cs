@@ -36,7 +36,7 @@ public sealed class GameBrowserWindow : Window
     private readonly TextBlock details = new() { Name = "GameDetails", Text = "Select a game to view its layout information.", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock status = new() { Name = "BrowserStatus", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock warnings = new() { Name = "ScanWarnings", TextWrapping = TextWrapping.Wrap };
-    private readonly Button open = new() { Name = "InspectGame", Content = "Open layout information", IsEnabled = false };
+    private readonly Button open = new() { Name = "InspectGame", Content = "Load game", IsEnabled = false };
     private readonly Button refresh = new() { Name = "RefreshGames", Content = "Refresh" };
     private readonly Button cancel = new() { Name = "CancelScan", Content = "Stop scan", IsVisible = false };
     private readonly TextBlock folders = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray };

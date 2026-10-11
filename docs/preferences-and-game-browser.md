@@ -22,7 +22,7 @@ Find opens the recovered ManagerFindForm design. Enter a name and choose Find (o
 
 Filter opens the recovered FilterForm design. Name and platform checkboxes narrow the list immediately; Clear All and Select All affect the displayed platforms, Reset clears these dialog filters, and Refresh rescans configured folders. Dialog filters intersect with the toolbar search/system filter. They survive closing/reopening the dialog during the current Game Manager session; new platforms found by a scan start included. Tags, WIP/non-runner and layout categories remain disabled until their metadata is supported. Closing Game Manager closes its owned dialogs.
 
-Search matches game name, system and configuration path. The system filter narrows results. Selecting a game shows its game/system/protocol fields, layout filename, ROM filenames and configuration path. Open layout information (or double-click) updates the main window and closes the browser. No ROM execution, artwork loading, file association or layout conversion is performed.
+Search matches game name, system and configuration path. The system filter narrows results. Selecting a game shows its game/system/protocol fields, layout filename, ROM filenames and configuration path. Load game (or double-click) closes the browser and automatically loads the associated v20.1 FML artwork into the main canvas. Loading errors appear in a dialog and preserve any existing canvas. No ROM execution, file association or layout conversion is performed. See [FML layout previews](fml-layout-preview.md).
 
 ## Game Manager view
 

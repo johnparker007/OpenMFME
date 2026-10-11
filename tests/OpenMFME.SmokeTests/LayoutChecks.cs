@@ -73,6 +73,17 @@ internal static class LayoutChecks
             check(labelPreview.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Name == "LayoutLabel1" && control.Text == "Label"),
                 "Saved label text did not render");
             labelPreview.Close();
+            var main = new MainWindow(new SettingsStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "settings.json")));
+            main.Show(); Dispatcher.UIThread.RunJobs();
+            check(main.FindControl<Border>("LayoutHost")!.Child is null &&
+                !main.FindControl<Border>("LayoutHost")!.GetVisualDescendants().Any() &&
+                main.FindControl<Button>("BrowseGames") is null && main.FindControl<TextBlock>("StatusText") is null,
+                "Startup canvas contains welcome/sidebar/status controls");
+            main.LoadLayout(labelPath); Pump(main.LayoutLoadCompletion);
+            check(main.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Name == "LayoutLabel1" && control.Text == "Label"),
+                "File layout loading did not render in the main canvas");
+            check(main.LayoutPreview is null && main.OwnedWindows.Count == 0, "Main layout loading opened an extra window");
+            main.Close();
         }
         finally { File.Delete(labelPath); }
 
@@ -118,17 +129,39 @@ internal static class LayoutChecks
         {
             var settings = new SettingsStore(settingsFile); settings.Save(new AppSettings { GameFolders = [Path.GetDirectoryName(sampleGame)!], IncludeSubfolders = false });
             var main = new MainWindow(settings); main.Show(); Dispatcher.UIThread.RunJobs();
-            main.FindControl<Button>("BrowseGames")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
+            main.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>().Single(item => item.Header?.ToString() == "Game Manager").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
             var manager = main.GameManager!; Pump(manager.ScanCompletion);
             var games = manager.GetVisualDescendants().OfType<ListBox>().Single(control => control.Name == "GamesList");
             games.SelectedItem = games.ItemsSource!.Cast<GameMetadata>().Single(item => GameLibraryScanner.PathComparer.Equals(item.FilePath, game.FilePath));
             manager.GetVisualDescendants().OfType<Button>().Single(control => control.Name == "InspectGame").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
-            check(main.FindControl<Button>("ViewGameLayout")!.IsEnabled, "Selected game did not enable layout preview");
-            main.FindControl<Button>("ViewGameLayout")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs();
-            var routed = main.LayoutPreview!; Pump(routed.LoadCompletion);
-            check(routed.Document?.FilePath == layoutPath, "View selected layout resolved the wrong FML path");
-            main.Close(); check(!routed.IsVisible, "Closing main window left layout preview open");
+            Pump(main.LayoutLoadCompletion);
+            check(main.IsVisible && main.GameManager is null, "Loading game did not restore the main canvas");
+            check(main.LoadedLayout?.FilePath == layoutPath, "Game Manager resolved the wrong FML path");
+            check(main.LayoutPreview is null && main.GetVisualDescendants().OfType<Image>().Any(), "Game opened a separate preview instead of the main canvas");
+            check(main.Title == game.DisplayName, "Loaded game title was not restored");
+            check(main.GetVisualDescendants().OfType<Border>().Where(control => control.Name?.StartsWith("ComponentOutline") == true).All(control => !control.IsVisible), "Main canvas shows diagnostic outlines");
+            var host = main.FindControl<Border>("LayoutHost")!;
+            check(host.Bounds.X == 0 && host.Bounds.Width == main.ClientSize.Width && host.Bounds.Bottom == main.ClientSize.Height,
+                "Layout canvas does not fill the area below the meter strip");
+            main.Width = 600; main.Height = 900; Dispatcher.UIThread.RunJobs();
+            check(host.Bounds.Width == main.ClientSize.Width && host.Bounds.Bottom == main.ClientSize.Height, "Resized canvas left unused sidebar/status space");
+            main.Width = 1120; Dispatcher.UIThread.RunJobs();
+            if (renderDirectory is not null)
+            {
+                using var frame = main.CaptureRenderedFrame()!;
+                using var output = File.Create(Path.Combine(renderDirectory, "MainWindowPartyTime.png"));
+                frame.Save(output, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            }
+            var original = main.LoadedLayout;
+            main.LoadLayout(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".fml")); Pump(main.LayoutLoadCompletion);
+            check(main.LayoutLoadError is not null && ReferenceEquals(main.LoadedLayout, original), "Failed load lost the current layout or hid its error");
+            foreach (var dialog in main.OwnedWindows.ToArray()) dialog.Close();
+            main.LoadLayout(layoutPath); main.LoadLayout(layoutPath); Pump(main.LayoutLoadCompletion);
+            check(main.LoadedLayout?.FilePath == layoutPath && main.LayoutLoadError is null, "Replacing an in-progress load failed");
+            main.LoadLayout(layoutPath); var pendingMain = main.LayoutLoadCompletion;
+            main.Close(); Pump(pendingMain);
+            check(host.Child is null, "Closing main window retained the layout surface");
         }
         finally { if (File.Exists(settingsFile)) File.Delete(settingsFile); if (Directory.Exists(settingsDirectory)) Directory.Delete(settingsDirectory); }
         Console.WriteLine($"Verified FML: {decoded.Components.Count} components · {decoded.Width} × {decoded.Height}.");

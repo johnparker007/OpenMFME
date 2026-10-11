@@ -1,39 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="OpenMFME.Desktop.MainWindow"
-        Title="OpenMFME" Width="1120" Height="760" MinWidth="1024" MinHeight="520">
-  <Grid RowDefinitions="Auto,Auto,*,Auto">
+        Title="OpenMFME" Width="1120" Height="760" MinWidth="480" MinHeight="320">
+  <Grid RowDefinitions="Auto,Auto,*">
     <Menu x:Name="MainMenuBar" Grid.Row="0" />
     <ScrollViewer x:Name="MeterStrip" Grid.Row="1"
-                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled"
                   Background="#F0F0F0" />
-    <Grid Grid.Row="2" ColumnDefinitions="*,300" Margin="16" ColumnSpacing="16">
-      <Border Background="#E9EDF1" BorderBrush="#CAD1D9" BorderThickness="1" CornerRadius="4">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="32" Spacing="16">
-          <TextBlock Text="OpenMFME" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center" />
-          <TextBlock Text="A new home for fruit machine preservation." FontSize="16" TextAlignment="Center" TextWrapping="Wrap" />
-          <Button x:Name="BrowseGames" Content="Browse games…" Click="Games_Click" HorizontalAlignment="Center" />
-          <TextBlock Text="The original menu structure and meter strip are now reconstructed. Add your game folders and browse layout information, or explore the recovered windows and dialogs. Machine emulation is not connected yet." TextAlignment="Center" TextWrapping="Wrap" Foreground="#56616E" />
-        </StackPanel>
-      </Border>
-      <Border Grid.Column="1" Padding="16" BorderBrush="#CAD1D9" BorderThickness="1" CornerRadius="4">
-        <ScrollViewer>
-          <StackPanel Spacing="16">
-            <TextBlock Text="Layout information" FontSize="18" FontWeight="SemiBold" />
-            <Button Content="Open layout information…" Click="OpenLayout_Click" />
-            <TextBlock x:Name="LayoutSummary" Text="Open a .gam file to inspect its system, layout and ROM filenames. This build does not run machine ROMs." TextWrapping="Wrap" />
-            <Button x:Name="ViewGameLayout" Content="View selected layout" Click="ViewGameLayout_Click" IsEnabled="False" />
-            <Button Content="Open FML preview…" Click="OpenFml_Click" />
-            <Separator />
-            <TextBlock Text="UI reconstruction" FontWeight="SemiBold" />
-            <TextBlock Text="Explore the recovered windows, controls and button graphics. Commands and machine emulation are still in development." TextWrapping="Wrap" />
-            <Button Content="Browse recovered forms" Click="Forms_Click" />
-          </StackPanel>
-        </ScrollViewer>
-      </Border>
-    </Grid>
-    <Border Grid.Row="3" Background="#F4F5F7" Padding="12,8" BorderBrush="#D5D9DE" BorderThickness="0,1,0,0">
-      <TextBlock x:Name="StatusText" Text="Ready · UI reconstruction · Emulation not connected" FontSize="12" />
-    </Border>
+    <Border x:Name="LayoutHost" Grid.Row="2" Background="White" ClipToBounds="True" />
   </Grid>
 </Window>
