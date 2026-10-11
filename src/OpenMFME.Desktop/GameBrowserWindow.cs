@@ -5,7 +5,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.Styling;
+using Avalonia.Controls.Primitives;
 using OpenMFME.Desktop.Services;
 using OpenMFME.Desktop.Reconstruction;
 using OpenMFME.Formats;
@@ -21,10 +21,18 @@ public sealed class GameBrowserWindow : Window
     private readonly Dictionary<string, GameNotes> gameNotes = new(GameLibraryScanner.PathComparer);
     private GameNotesEditor? notesEditor;
     private MenuItem? editNotesMenu;
+    private MenuItem? fileNamesMenu;
     private readonly TextBlock notesDetails = new() { Name = "GameNotesDetails", TextWrapping = TextWrapping.Wrap };
     private readonly TextBox search = new() { Name = "GameSearch", PlaceholderText = "Search by game, system or filename…" };
     private readonly ComboBox systems = new() { Name = "SystemFilter", MinWidth = 150 };
-    private readonly ListBox list = new() { Name = "GamesList" };
+    private readonly ListBox list;
+    private readonly GameManagerTable table;
+    private readonly Grid body = new() { Name = "ManagerBody", ColumnDefinitions = new ColumnDefinitions("3*,5,1*") };
+    private readonly Dictionary<string, TextBlock> summaryFields = [];
+    private bool showFileNames;
+    private string sortColumn = "Game Name";
+    private bool sortDescending;
+    private PixelPoint defaultPosition;
     private readonly TextBlock details = new() { Name = "GameDetails", Text = "Select a game to view its layout information.", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock status = new() { Name = "BrowserStatus", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock warnings = new() { Name = "ScanWarnings", TextWrapping = TextWrapping.Wrap };
@@ -46,7 +54,7 @@ public sealed class GameBrowserWindow : Window
     {
         this.store = store; this.inspect = inspect; this.preferences = preferences;
         this.notesStore = notesStore ?? new GameNotesStore(Path.Combine(Path.GetDirectoryName(store.FilePath)!, "game-notes"));
-        Title = "OpenMFME Game Manager"; Width = 960; Height = 650; MinWidth = 720; MinHeight = 450;
+        Title = "OpenMFME Game Manager"; Width = 1280; Height = 760; MinWidth = 860; MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var outer = new DockPanel();
         var definition = RecoveredFormLibrary.Get("ManagerForm").Root.Children.Single(node => node.InstanceName == "ManagerMenu");
@@ -55,44 +63,54 @@ public sealed class GameBrowserWindow : Window
         editNotesMenu = ((Control[])menu.ItemsSource!).OfType<MenuItem>().Single(item => item.Name == "AddNotes1");
         editNotesMenu.IsEnabled = false;
         DockPanel.SetDock(menu, Dock.Top); outer.Children.Add(menu);
-        var dock = new DockPanel { Margin = new Thickness(20) };
+        var viewMenu = ((Control[])menu.ItemsSource!).OfType<MenuItem>().Single(item => item.Name == "Display1");
+        fileNamesMenu = viewMenu.ItemsSource!.Cast<Control>().OfType<MenuItem>().Single(item => item.Name == "ShowFileNames1");
+        fileNamesMenu.ToggleType = MenuItemToggleType.CheckBox;
+        var dock = new DockPanel { Margin = new Thickness(4) };
         outer.Children.Add(dock);
-        var header = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 0, 14) };
-        header.Children.Add(new TextBlock { Text = "Game Manager", FontSize = 22, FontWeight = FontWeight.SemiBold });
-        header.Children.Add(new TextBlock { Text = "Browse layout information. Games cannot be played in this build.", TextWrapping = TextWrapping.Wrap });
-        header.Children.Add(folders);
-        var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        toolbar.Children.Add(refresh); toolbar.Children.Add(cancel); header.Children.Add(toolbar);
-        var filter = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        filter.Children.Add(search); Grid.SetColumn(systems, 1); filter.Children.Add(systems); header.Children.Add(filter);
+        var header = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 4) };
+        var toolbar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 6 };
+        toolbar.Children.Add(search); Grid.SetColumn(systems, 1); toolbar.Children.Add(systems);
+        Grid.SetColumn(refresh, 2); toolbar.Children.Add(refresh); Grid.SetColumn(cancel, 3); toolbar.Children.Add(cancel);
+        header.Children.Add(toolbar); header.Children.Add(folders);
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
-        var footer = new StackPanel { Spacing = 8, Margin = new Thickness(0, 12, 0, 0) };
-        footer.Children.Add(status);
-        footer.Children.Add(new Expander { Header = "Scan details", Content = new ScrollViewer { MaxHeight = 100, Content = warnings } });
-        DockPanel.SetDock(footer, Dock.Bottom); dock.Children.Add(footer);
-        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("3*,2*"), ColumnSpacing = 16 };
-        body.Children.Add(list);
-        var information = new DockPanel();
-        DockPanel.SetDock(open, Dock.Bottom); information.Children.Add(open);
-        information.Children.Add(new TabControl { Name = "GameInformationTabs", ItemsSource = new[]
+        var footer = new StackPanel { Spacing = 4, Margin = new Thickness(0, 4, 0, 0) };
+        var summary = new Grid { Name = "SelectedGameSummary", ColumnDefinitions = new ColumnDefinitions("100,*"), Margin = new Thickness(4) };
+        var fieldNames = new[] { "Name", "Manufacturer", "ReleaseDate", "Technology", "MachineType", "Stakes", "Prizes" };
+        var labels = new[] { "Name:", "Manufacturer:", "Release Date:", "Technology:", "Machine Type:", "Stakes:", "Prizes:" };
+        for (var index = 0; index < fieldNames.Length; index++)
+        {
+            summary.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var label = new TextBlock { Text = labels[index], FontSize = 11 };
+            Grid.SetRow(label, index); summary.Children.Add(label);
+            var value = new TextBlock { Name = "Summary" + fieldNames[index], FontSize = 11, FontWeight = FontWeight.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis };
+            summaryFields[fieldNames[index]] = value;
+            Grid.SetRow(value, index); Grid.SetColumn(value, 1); summary.Children.Add(value);
+        }
+        footer.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.Parse("#BCC2C9")), BorderThickness = new Thickness(0, 1, 0, 0), Child = summary });
+        footer.Children.Add(new Expander { Name = "ScanDetails", Header = "Scan details", Content = new ScrollViewer { MaxHeight = 100, Content = warnings } });
+        var statusRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        status.FontSize = 11; status.VerticalAlignment = VerticalAlignment.Center;
+        statusRow.Children.Add(status); Grid.SetColumn(open, 1); statusRow.Children.Add(open);
+        footer.Children.Add(statusRow); DockPanel.SetDock(footer, Dock.Bottom); dock.Children.Add(footer);
+        table = new GameManagerTable(game => showFileNames ? Path.GetFileName(game.FilePath) : DisplayName(game), SortBy);
+        list = table.List; table.UpdateSort(sortColumn, sortDescending);
+        body.Children.Add(table);
+        var splitter = new GridSplitter { Name = "ManagerSplitter", ResizeDirection = GridResizeDirection.Columns,
+            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, Background = Brushes.LightGray };
+        Grid.SetColumn(splitter, 1); body.Children.Add(splitter);
+        var tabs = new TabControl { Name = "GameInformationTabs", ItemsSource = new[]
         {
             new TabItem { Header = "Game", Content = new ScrollViewer { Content = details } },
+            new TabItem { Header = "Cabinet", Content = new TextBlock { Name = "CabinetPreviewStatus", Text = "Cabinet artwork is not loaded in this build.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8) } },
+            new TabItem { Header = "Flyer", Content = new TextBlock { Name = "FlyerPreviewStatus", Text = "Flyer artwork is not loaded in this build.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8) } },
             new TabItem { Header = "Notes", Content = new ScrollViewer { Content = notesDetails } }
-        } }); Grid.SetColumn(information, 1); body.Children.Add(information);
-        dock.Children.Add(body); Content = outer;
-        var rows = new Style(selector => selector.OfType<ListBoxItem>());
-        rows.Setters.Add(new Setter(ListBoxItem.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
-        list.Styles.Add(rows);
-        list.ItemTemplate = new FuncDataTemplate<GameMetadata>((game, _) =>
-        {
-            if (game is null) return null;
-            var row = new StackPanel { Spacing = 3, Margin = new Thickness(0, 3) };
-            row.Children.Add(new TextBlock { Text = DisplayName(game), FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-            row.Children.Add(new TextBlock { Text = game.System.Length == 0 ? "System not specified" : game.System, FontSize = 12, Foreground = Brushes.DimGray });
-            var filename = new TextBlock { Text = game.FilePath, FontSize = 11, Foreground = Brushes.DimGray, TextTrimming = TextTrimming.CharacterEllipsis };
-            ToolTip.SetTip(filename, game.FilePath); row.Children.Add(filename);
-            return row;
-        });
+        } };
+        RecoveredFormFactory.AddCompactStyles(tabs);
+        foreach (var tab in tabs.ItemsSource!.Cast<TabItem>()) { tab.FontSize = 11; tab.Padding = new Thickness(8, 3); }
+        details.Margin = notesDetails.Margin = new Thickness(8); details.FontSize = notesDetails.FontSize = 12;
+        Grid.SetColumn(tabs, 2); body.Children.Add(tabs); dock.Children.Add(body); Content = outer;
         search.TextChanged += (_, _) => Filter();
         systems.SelectionChanged += (_, _) => Filter();
         list.SelectionChanged += (_, _) =>
@@ -107,7 +125,7 @@ public sealed class GameBrowserWindow : Window
         refresh.Click += (_, _) => BeginScan();
         cancel.Click += (_, _) => scan?.Cancel();
         store.Changed += SettingsChanged;
-        Opened += (_, _) => BeginScan();
+        Opened += (_, _) => { defaultPosition = Position; BeginScan(); };
         Closed += (_, _) => { closed = true; store.Changed -= SettingsChanged; scan?.Cancel(); };
         Filter(); UpdateNotesDetails();
     }
@@ -115,6 +133,9 @@ public sealed class GameBrowserWindow : Window
     private Action? ResolveMenuAction(DfmComponent item) => item.Text("OnClick") switch
     {
         "ExitManagerClick" => Close,
+        "ShowFileNames1Click" => ToggleFileNames,
+        "ResetWindow1Click" => ResetWindow,
+        "ResetColumns1Click" => () => table.ResetColumns(),
         "AddNotes1Click" => OpenNotes,
         "FindClick" => OpenFind,
         "FilterClick" => OpenFilter,
@@ -127,9 +148,41 @@ public sealed class GameBrowserWindow : Window
     private string DisplayName(GameMetadata game) => gameNotes.TryGetValue(game.FilePath, out var notes) && !string.IsNullOrWhiteSpace(notes.Name)
         ? notes.Name : game.DisplayName;
 
-    private void UpdateNotesDetails() => notesDetails.Text = list.SelectedItem is GameMetadata game
-        ? gameNotes.TryGetValue(game.FilePath, out var notes) ? notes.Summary : "No OpenMFME notes saved for this game."
-        : "Select a game to view its notes.";
+    private void ToggleFileNames()
+    {
+        showFileNames = !showFileNames;
+        table.UpdateNameHeader(showFileNames);
+        // Recreate rows so a name-mode change also refreshes already realized cells.
+        fileNamesMenu!.IsChecked = showFileNames;
+        table.RefreshRows();
+        Filter();
+    }
+
+    private void ResetWindow()
+    {
+        WindowState = WindowState.Normal; Width = 1280; Height = 760; Position = defaultPosition;
+        body.ColumnDefinitions[0].Width = new GridLength(3, GridUnitType.Star);
+        body.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column) sortDescending = !sortDescending;
+        else { sortColumn = column; sortDescending = false; }
+        table.UpdateSort(sortColumn, sortDescending); Filter();
+    }
+
+    private void UpdateNotesDetails()
+    {
+        var game = list.SelectedItem as GameMetadata;
+        var notes = game is not null ? gameNotes.GetValueOrDefault(game.FilePath) : null;
+        notesDetails.Text = game is null ? "Select a game to view its notes."
+            : notes?.Summary ?? "No OpenMFME notes saved for this game.";
+        var values = game is null ? new string[7] : new[] { DisplayName(game), notes?.Manufacturer ?? "", notes?.ReleaseDate ?? "",
+            string.IsNullOrWhiteSpace(notes?.Technology) ? game.System : notes.Technology,
+            notes?.MachineType ?? "", notes?.Stakes ?? "", notes?.Prizes ?? "" };
+        foreach (var pair in summaryFields.Zip(values)) { pair.First.Value.Text = pair.Second; ToolTip.SetTip(pair.First.Value, pair.Second); }
+    }
 
     private void OpenNotes()
     {
@@ -240,6 +293,10 @@ public sealed class GameBrowserWindow : Window
         var visible = games.Where(game => !excludedPlatforms.Contains(game.System) &&
             DisplayName(game).Contains(nameFilter, StringComparison.OrdinalIgnoreCase) && (system is null or "All systems" || game.System.Equals(system, StringComparison.OrdinalIgnoreCase)) &&
             $"{DisplayName(game)} {game.System} {game.FilePath}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        Func<GameMetadata, string> key = sortColumn == "Tech" ? game => game.System
+            : game => showFileNames ? Path.GetFileName(game.FilePath) : DisplayName(game);
+        visible = (sortDescending ? visible.OrderByDescending(key, StringComparer.OrdinalIgnoreCase)
+            : visible.OrderBy(key, StringComparer.OrdinalIgnoreCase)).ThenBy(game => game.FilePath, GameLibraryScanner.PathComparer).ToArray();
         list.ItemsSource = visible;
         if (selected is not null) list.SelectedItem = visible.FirstOrDefault(game => GameLibraryScanner.PathComparer.Equals(game.FilePath, selected.FilePath));
         status.Text = $"{visible.Length:N0} of {games.Length:N0} games" + (scanWarnings.Length == 0 ? "" : $" · {scanWarnings.Length:N0} file/folder issues");

@@ -24,6 +24,14 @@ Filter opens the recovered FilterForm design. Name and platform checkboxes narro
 
 Search matches game name, system and configuration path. The system filter narrows results. Selecting a game shows its game/system/protocol fields, layout filename, ROM filenames and configuration path. Open layout information (or double-click) updates the main window and closes the browser. No ROM execution, artwork loading, file association or layout conversion is performed.
 
+## Game Manager view
+
+The report table uses the recovered ManagerForm's 15 column captions and default widths: Game Name, Rating, Version, Tech, Played, Total In, Total Out, %, WIP, DX, Multi Player, Lo Tech, Tags, Last Played and Status. Name and Tech are populated from available metadata; unavailable fields remain blank. Drag the divider at the right edge of a column header to resize it. Click Game Name or Tech to sort; click again to reverse the direction. Rows are virtualized, and headers/rows share a horizontal viewport so the later columns remain accessible.
+
+View → Show File Names toggles configuration filenames in the name column and preserves selection. Search continues to match both game names and paths; Find searches game names. View → Default Columns restores the recovered widths and scrolls the table back to its left edge. View → Default Window restores the 1280 × 760 window, original position and 3:1 table/preview split. A draggable splitter changes the pane proportions. View choices and widths apply to the current manager session.
+
+The right-hand tabs are Game, Cabinet, Flyer and Notes. Game currently shows configuration information, Notes shows saved OpenMFME notes, and Cabinet/Flyer explicitly show placeholders until artwork loading is implemented. The lower information panel shows the selected game's name, manufacturer, release date, technology, machine type, stakes and prizes from configuration/saved notes; missing values stay blank. Clearing the selection clears the panel. No play counts or financial totals are inferred from missing emulation data.
+
 ## Game notes
 
 Select a game and choose Add/Edit Notes to open the recovered GameNotes editor. It supports name, manufacturer, release date, technology, machine type, stakes, prizes and multiline comments. Save updates the list and Notes tab; Cancel, Escape and window close discard the draft. The editor belongs to Game Manager and closes with it. Edited display names are used by Find and the name/search filters; the original configuration name remains visible in the Game tab. Technology is descriptive metadata and does not change the configuration system or platform filter.
@@ -38,7 +46,7 @@ This is a metadata parser, not a complete parser for every MFME configuration fi
 
 ## Verification
 
-Isolated checks cover settings round trips, normalization, invalid/future settings, failed saves, draft cancellation, saving through the UI, automatic library refresh, missing/oversized/malformed files, overlapping folders, recursion, legacy encoding, cancellation, search/system filtering, startup browsing, duplicate-window prevention and main-window inspection. Temporary fixture cleanup removes registered files and empty directories without recursive deletion. Tests do not write real user preferences.
+Isolated checks cover settings round trips, normalization, invalid/future settings, failed saves, draft cancellation, saving through the UI, automatic library refresh, missing/oversized/malformed files, overlapping folders, recursion, legacy encoding, cancellation, search/system filtering, startup browsing, duplicate-window prevention, main-window inspection, table sorting/resizing, View commands, metadata panels, four tabs and virtualized large-library navigation. Temporary fixture cleanup removes registered files and empty directories without recursive deletion. Tests do not write real user preferences.
 
 An optional local sample can be verified read-only and used in preview screenshots:
 

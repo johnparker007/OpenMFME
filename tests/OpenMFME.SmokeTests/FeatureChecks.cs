@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Input;
@@ -214,6 +216,59 @@ internal static class FeatureChecks
         check(ReferenceEquals(main.GameManager, browser), "Game Manager was duplicated on repeated open");
         var list = Named<ListBox>(browser, "GamesList");
         check(list.ItemsSource!.Cast<GameMetadata>().Count() == 3, "Browser did not show scanned games");
+        var tableGrid = list.GetVisualDescendants().OfType<Grid>().First(grid => grid.ColumnDefinitions.Count == 15);
+        check(tableGrid.ColumnDefinitions.Count == 15 && tableGrid.ColumnDefinitions[0].Width.Value == 260 && tableGrid.ColumnDefinitions[3].Width.Value == 76,
+            "Recovered table columns or default widths changed");
+        check(list.GetVisualDescendants().OfType<TextBlock>().Where(control => control.Name is not null && control.Name.StartsWith("GameCell") && control.Name != "GameCell0" && control.Name != "GameCell3")
+            .All(control => string.IsNullOrEmpty(control.Text)), "Unavailable statistics are fabricated");
+        var tabs = Named<TabControl>(browser, "GameInformationTabs");
+        check(tabs.ItemsSource!.Cast<TabItem>().Select(tab => tab.Header).SequenceEqual(new[] { "Game", "Cabinet", "Flyer", "Notes" }),
+            "Game Manager preview tabs are incomplete or out of order");
+        tabs.SelectedIndex = 1; Dispatcher.UIThread.RunJobs();
+        check(Named<TextBlock>(browser, "CabinetPreviewStatus").Text!.Contains("not loaded"), "Cabinet preview placeholder missing");
+        tabs.SelectedIndex = 2; Dispatcher.UIThread.RunJobs();
+        check(Named<TextBlock>(browser, "FlyerPreviewStatus").Text!.Contains("not loaded"), "Flyer preview placeholder missing");
+        tabs.SelectedIndex = 0; Dispatcher.UIThread.RunJobs();
+        var viewEntries = menus.Single(item => item.Name == "Display1").ItemsSource!.Cast<Control>().OfType<MenuItem>().ToArray();
+        var filenameMenu = viewEntries.Single(item => item.Name == "ShowFileNames1");
+        list.SelectedItem = list.ItemsSource!.Cast<GameMetadata>().Single(game => game.FilePath == partyPath);
+        filenameMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        check(filenameMenu.IsChecked && list.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Name == "GameCell0" && control.Text == "Party Time.gam") &&
+            ((GameMetadata)list.SelectedItem!).FilePath == partyPath, "Show File Names failed or lost selection");
+        filenameMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        check(!filenameMenu.IsChecked && list.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Name == "GameCell0" && control.Text == "Party Time Player"),
+            "Show File Names did not restore game names");
+        Click(browser, "SortGameName"); Dispatcher.UIThread.RunJobs();
+        check(list.ItemsSource!.Cast<GameMetadata>().Select(game => game.DisplayName).SequenceEqual(
+            list.ItemsSource!.Cast<GameMetadata>().Select(game => game.DisplayName).OrderByDescending(name => name, StringComparer.OrdinalIgnoreCase)), "Name sorting failed");
+        Click(browser, "SortTechnology"); Dispatcher.UIThread.RunJobs();
+        check(list.ItemsSource!.Cast<GameMetadata>().Select(game => game.System).SequenceEqual(
+            list.ItemsSource!.Cast<GameMetadata>().Select(game => game.System).Order(StringComparer.OrdinalIgnoreCase)), "Technology sorting failed");
+        Click(browser, "SortGameName"); Dispatcher.UIThread.RunJobs();
+        var resize = Named<Thumb>(browser, "ResizeColumn0");
+        var resizePoint = resize.TranslatePoint(new Point(resize.Bounds.Width / 2, resize.Bounds.Height / 2), browser)!.Value;
+        browser.MouseDown(resizePoint, MouseButton.Left, RawInputModifiers.None);
+        browser.MouseMove(resizePoint + new Vector(60, 0), RawInputModifiers.LeftMouseButton);
+        browser.MouseUp(resizePoint + new Vector(60, 0), MouseButton.Left, RawInputModifiers.None); Dispatcher.UIThread.RunJobs();
+        tableGrid = list.GetVisualDescendants().OfType<Grid>().First(grid => grid.ColumnDefinitions.Count == 15);
+        check(tableGrid.ColumnDefinitions[0].Width.Value > 260, "Dragging column header did not resize rows");
+        viewEntries.Single(item => item.Name == "ResetColumns1").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        check(tableGrid.ColumnDefinitions[0].Width.Value == 260, "Default Columns did not restore recovered widths");
+        browser.Width = 960; browser.Height = 600;
+        var managerBody = Named<Grid>(browser, "ManagerBody"); managerBody.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+        viewEntries.Single(item => item.Name == "ResetWindow1").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        check(browser.Width == 1280 && browser.Height == 760 && managerBody.ColumnDefinitions[0].Width.Value == 3,
+            "Default Window did not restore size and pane proportions");
+        var originalRows = list.ItemsSource!.Cast<GameMetadata>().ToArray();
+        var syntheticRows = Enumerable.Range(0, 5000).Select(index => new GameMetadata(Path.Combine(games, $"synthetic-{index}.gam"), $"Synthetic {index}", "ASTRA", "", "", [])).ToArray();
+        list.ItemsSource = syntheticRows; Dispatcher.UIThread.RunJobs();
+        var realizedRows = list.GetVisualDescendants().OfType<TextBlock>().Count(control => control.Name == "GameCell0");
+        check(realizedRows > 0 && realizedRows < 100, "Game table does not virtualize a large library");
+        list.ScrollIntoView(syntheticRows[^1]); Dispatcher.UIThread.RunJobs();
+        check(list.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Name == "GameCell0" && control.Text == "Synthetic 4999"),
+            "Last game is unreachable in a virtualized library");
+        list.ItemsSource = originalRows; list.SelectedItem = null; Dispatcher.UIThread.RunJobs();
+        check(string.IsNullOrEmpty(Named<TextBlock>(browser, "SummaryName").Text), "Information panel retained a cleared selection");
         var findMenu = menus.Single(item => item.Name == "Find");
         findMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
         var findWindow = browser.OwnedWindows.Single(window => window.Title == "Find");
@@ -287,9 +342,11 @@ internal static class FeatureChecks
             "Notes editor is not editable");
         Click(editor, "SpeedButton1"); Pump(browser.ScanCompletion);
         var savedNotes = new GameNotesStore(notesDirectory).Read(partyPath)!;
+        check(Named<TextBlock>(browser, "SummaryManufacturer").Text == "Astra" && Named<TextBlock>(browser, "SummaryPrizes").Text == "£25" &&
+            Named<TextBlock>(browser, "SummaryTechnology").Text == "Astra System 1", "Saved notes did not update information panel");
         check(!editor.IsVisible && savedNotes.Name.EndsWith("(annotated)") && savedNotes.Prizes == "£25" && savedNotes.Notes.Contains("café"),
             "Game Notes Save failed");
-        Named<TabControl>(browser, "GameInformationTabs").SelectedIndex = 1; Dispatcher.UIThread.RunJobs();
+        Named<TabControl>(browser, "GameInformationTabs").SelectedIndex = 3; Dispatcher.UIThread.RunJobs();
         check(Named<TextBlock>(browser, "GameNotesDetails").Text!.Contains("Preservation notes"), "Saved notes did not update Notes tab");
         check(browser.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Text == savedNotes.Name),
             "Annotated name did not update the game list");
