@@ -134,6 +134,29 @@ internal static class FeatureChecks
         try { blocked.Save(new AppSettings { GameFolders = [games] }); throw new Exception("Saving onto a directory succeeded"); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { check(blocked.Current.GameFolders.Length == 0, "Failed save changed in-memory settings"); }
 
+        var notesDirectory = fixture.Folder("game-notes");
+        var notesStore = new GameNotesStore(notesDirectory);
+        fixture.File(Path.Combine("game-notes", Path.GetFileName(notesStore.FilePathFor(partyPath))));
+        fixture.File(Path.Combine("game-notes", Path.GetFileName(notesStore.FilePathFor(legacyPath))));
+        check(notesStore.Read(partyPath) is null && !System.IO.File.Exists(notesStore.FilePathFor(partyPath)),
+            "Reading missing notes created a file");
+        var serviceNotes = new GameNotes { Name = "Party Time Player", Manufacturer = "Astra", Notes = "Unicode café £\nSecond line" };
+        notesStore.Save(partyPath, serviceNotes);
+        check(new GameNotesStore(notesDirectory).Read(partyPath) == serviceNotes && notesStore.Read(legacyPath) is null,
+            "Notes round trip or per-game isolation failed");
+        if (OperatingSystem.IsWindows()) check(notesStore.FilePathFor(partyPath) == notesStore.FilePathFor(partyPath.ToUpperInvariant()),
+            "Windows note identity is case sensitive");
+        var noteBytes = System.IO.File.ReadAllBytes(notesStore.FilePathFor(partyPath));
+        try { notesStore.Save(partyPath, serviceNotes with { Notes = new string('x', GameNotesStore.MaximumComments + 1) }); throw new Exception("Oversized notes accepted"); }
+        catch (InvalidDataException) { check(noteBytes.SequenceEqual(System.IO.File.ReadAllBytes(notesStore.FilePathFor(partyPath))), "Invalid notes changed saved data"); }
+        var malformedNote = fixture.File(Path.Combine("game-notes", Path.GetFileName(notesStore.FilePathFor(bomPath))), "{invalid");
+        try { notesStore.Read(bomPath); throw new Exception("Malformed notes accepted"); }
+        catch (System.Text.Json.JsonException) { check(System.IO.File.ReadAllText(malformedNote) == "{invalid", "Malformed notes were rewritten"); }
+        var unsupportedNote = fixture.File(Path.Combine("game-notes", Path.GetFileName(notesStore.FilePathFor(Path.Combine(games, "unknown.gam")))),
+            System.Text.Json.JsonSerializer.Serialize(new { schemaVersion = 99, gamePath = partyPath, data = serviceNotes }));
+        try { notesStore.Read(Path.Combine(games, "unknown.gam")); throw new Exception("Unknown note schema accepted"); }
+        catch (InvalidDataException) { check(true, "Unknown note schema rejected"); }
+
         var savedBytes = System.IO.File.ReadAllBytes(settingsPath);
         var draft = new PreferencesWindow(store); draft.Show(); Dispatcher.UIThread.RunJobs();
         Named<TextBox>(draft, "FolderPath").Text = child; Click(draft, "SavePreferences");
@@ -246,6 +269,40 @@ internal static class FeatureChecks
         list.SelectedIndex = 0; Dispatcher.UIThread.RunJobs();
         check(Named<TextBlock>(browser, "GameDetails").Text!.Contains("second.bin") &&
             Named<Button>(browser, "InspectGame").IsEnabled, "Selected game details failed");
+        var notesMenu = menus.Single(item => item.Name == "AddNotes1");
+        check(notesMenu.IsEnabled, "Add/Edit Notes is disabled for a selected game");
+        notesMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var editor = browser.OwnedWindows.Single(window => window.Title!.StartsWith("Game Notes"));
+        check(Named<TextBox>(editor, "Manufacturer").Text == "Astra" && Named<TextBox>(editor, "Notes").Text!.Contains("café"),
+            "Game Notes editor did not load saved fields");
+        Named<TextBox>(editor, "Name").Text = "Party Time Player (annotated)";
+        Named<TextBox>(editor, "Technology").Text = "Astra System 1";
+        Named<TextBox>(editor, "ReleaseDate").Text = "2000";
+        Named<TextBox>(editor, "MachineType").Text = "Single cabinet";
+        Named<TextBox>(editor, "Stakes").Text = "25p";
+        Named<TextBox>(editor, "Prizes").Text = "£25";
+        Named<TextBox>(editor, "Notes").Text = "Preservation notes\nUnicode £ café";
+        Snapshot(editor, renderDirectory, "GameNotesEditor");
+        check(Named<Button>(editor, "SpeedButton1").IsEnabled && !Named<TextBox>(editor, "Notes").IsReadOnly,
+            "Notes editor is not editable");
+        Click(editor, "SpeedButton1"); Pump(browser.ScanCompletion);
+        var savedNotes = new GameNotesStore(notesDirectory).Read(partyPath)!;
+        check(!editor.IsVisible && savedNotes.Name.EndsWith("(annotated)") && savedNotes.Prizes == "£25" && savedNotes.Notes.Contains("café"),
+            "Game Notes Save failed");
+        Named<TabControl>(browser, "GameInformationTabs").SelectedIndex = 1; Dispatcher.UIThread.RunJobs();
+        check(Named<TextBlock>(browser, "GameNotesDetails").Text!.Contains("Preservation notes"), "Saved notes did not update Notes tab");
+        check(browser.GetVisualDescendants().OfType<TextBlock>().Any(control => control.Text == savedNotes.Name),
+            "Annotated name did not update the game list");
+        notesMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        editor = browser.OwnedWindows.Single(window => window.Title!.StartsWith("Game Notes"));
+        Named<TextBox>(editor, "Notes").Text = "discard this edit"; Click(editor, "SpeedButton2");
+        check(notesStore.Read(partyPath) == savedNotes, "Notes Cancel saved the draft");
+        notesMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        editor = browser.OwnedWindows.Single(window => window.Title!.StartsWith("Game Notes"));
+        Named<TextBox>(editor, "Notes").Text = "discard on close"; editor.Close();
+        check(notesStore.Read(partyPath) == savedNotes && original.SequenceEqual(System.IO.File.ReadAllBytes(partyPath)),
+            "Closing notes saved the draft or changed source configuration");
+        Named<TabControl>(browser, "GameInformationTabs").SelectedIndex = 0;
         store.Save(store.Current with { GameFolders = [games], IncludeSubfolders = false });
         Pump(browser.ScanCompletion);
         check(Named<TextBlock>(browser, "BrowserStatus").Text!.Contains("of 1 games"), "Preferences changes did not refresh the open browser");
@@ -282,9 +339,37 @@ internal static class FeatureChecks
             "Closing main window left Game Manager open or restored main window");
 
 
+        var goodNotes = System.IO.File.ReadAllBytes(notesStore.FilePathFor(partyPath));
+        System.IO.File.WriteAllText(notesStore.FilePathFor(partyPath), "{invalid");
+        var damagedBrowser = new GameBrowserWindow(store, _ => { }, () => Task.CompletedTask);
+        damagedBrowser.Show(); Dispatcher.UIThread.RunJobs(); Pump(damagedBrowser.ScanCompletion);
+        Named<ListBox>(damagedBrowser, "GamesList").SelectedIndex = 0; Dispatcher.UIThread.RunJobs();
+        Named<Menu>(damagedBrowser, "ManagerMenu").ItemsSource!.Cast<MenuItem>().Single(item => item.Name == "AddNotes1")
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var damagedEditor = damagedBrowser.OwnedWindows.Single(window => window.Title!.StartsWith("Game Notes"));
+        check(!Named<Button>(damagedEditor, "SpeedButton1").IsEnabled && Named<TextBlock>(damagedEditor, "DialogMessage").Text!.Contains("could not be loaded"),
+            "Damaged notes can be silently overwritten");
+        damagedEditor.Close(); damagedBrowser.Close();
+        check(System.IO.File.ReadAllText(notesStore.FilePathFor(partyPath)) == "{invalid", "Opening damaged notes modified them");
+        System.IO.File.WriteAllBytes(notesStore.FilePathFor(partyPath), goodNotes);
+        var unwritableNotes = fixture.File("notes-root-file", "blocked");
+        var failureBrowser = new GameBrowserWindow(store, _ => { }, () => Task.CompletedTask, new GameNotesStore(unwritableNotes));
+        failureBrowser.Show(); Dispatcher.UIThread.RunJobs(); Pump(failureBrowser.ScanCompletion);
+        Named<ListBox>(failureBrowser, "GamesList").SelectedIndex = 0; Dispatcher.UIThread.RunJobs();
+        Named<Menu>(failureBrowser, "ManagerMenu").ItemsSource!.Cast<MenuItem>().Single(item => item.Name == "AddNotes1")
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var failureEditor = failureBrowser.OwnedWindows.Single(window => window.Title!.StartsWith("Game Notes"));
+        Named<TextBox>(failureEditor, "Notes").Text = "retain this draft"; Click(failureEditor, "SpeedButton1");
+        check(failureEditor.IsVisible && Named<TextBox>(failureEditor, "Notes").Text == "retain this draft" &&
+            Named<TextBlock>(failureEditor, "DialogMessage").Text!.Contains("could not be saved"), "Failed note save lost the draft or hid the error");
+        failureBrowser.Close();
+        check(!failureEditor.IsVisible && System.IO.File.ReadAllText(unwritableNotes) == "blocked", "Failed save changed its destination or left editor open");
+
         store.Save(store.Current with { GameFolders = [] });
         var empty = new GameBrowserWindow(store, _ => { }, () => Task.CompletedTask);
         empty.Show(); Dispatcher.UIThread.RunJobs(); Pump(empty.ScanCompletion);
+        check(!Named<Menu>(empty, "ManagerMenu").ItemsSource!.Cast<MenuItem>().Single(item => item.Name == "AddNotes1").IsEnabled,
+            "Add/Edit Notes enabled without a selected game");
         check(!Named<Button>(empty, "InspectGame").IsEnabled &&
             Named<TextBlock>(empty, "BrowserStatus").Text == "0 of 0 games", "Empty-library state failed");
         empty.Close();

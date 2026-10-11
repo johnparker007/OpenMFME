@@ -24,6 +24,12 @@ Filter opens the recovered FilterForm design. Name and platform checkboxes narro
 
 Search matches game name, system and configuration path. The system filter narrows results. Selecting a game shows its game/system/protocol fields, layout filename, ROM filenames and configuration path. Open layout information (or double-click) updates the main window and closes the browser. No ROM execution, artwork loading, file association or layout conversion is performed.
 
+## Game notes
+
+Select a game and choose Add/Edit Notes to open the recovered GameNotes editor. It supports name, manufacturer, release date, technology, machine type, stakes, prizes and multiline comments. Save updates the list and Notes tab; Cancel, Escape and window close discard the draft. The editor belongs to Game Manager and closes with it. Edited display names are used by Find and the name/search filters; the original configuration name remains visible in the Game tab. Technology is descriptive metadata and does not change the configuration system or platform filter.
+
+OpenMFME notes are independent JSON files under LocalApplicationData/OpenMFME/game-notes. Each file is keyed by a hash of the absolute .gam path (case insensitive on Windows). Moving a configuration gives it a new identity; note migration and importing MFME's existing notes/database are not implemented. Game configurations, layouts and ROMs are never edited. Each metadata field supports 120 characters; comments support 32,768 characters. Note files are bounded to 256 KiB and saved by replacing from a temporary file. Failed saves retain the editor draft and show the error. Invalid or unreadable notes are reported in scan details and the editor disables Save so they cannot be silently overwritten.
+
 ## Metadata reader
 
 The bounded reader accepts at most 256 KiB per configuration. It supports BOM-marked UTF-8/UTF-16, strict unmarked UTF-8 with Windows-1252 fallback, whitespace-separated field names and values, quoted values, repeated ROM lines and comments starting with semicolon, hash or //. Unknown fields are ignored. System/Game/Layout/Protocol use the last saved value, while ROM entries preserve order. Files with binary nulls or no recognized fields are reported as invalid. A missing Game field falls back to the configuration filename.

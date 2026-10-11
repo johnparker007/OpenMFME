@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -16,6 +17,11 @@ public sealed class GameBrowserWindow : Window
     private readonly SettingsStore store;
     private readonly Action<GameMetadata> inspect;
     private readonly Func<Task> preferences;
+    private readonly GameNotesStore notesStore;
+    private readonly Dictionary<string, GameNotes> gameNotes = new(GameLibraryScanner.PathComparer);
+    private GameNotesEditor? notesEditor;
+    private MenuItem? editNotesMenu;
+    private readonly TextBlock notesDetails = new() { Name = "GameNotesDetails", TextWrapping = TextWrapping.Wrap };
     private readonly TextBox search = new() { Name = "GameSearch", PlaceholderText = "Search by game, system or filename…" };
     private readonly ComboBox systems = new() { Name = "SystemFilter", MinWidth = 150 };
     private readonly ListBox list = new() { Name = "GamesList" };
@@ -36,15 +42,18 @@ public sealed class GameBrowserWindow : Window
     private readonly HashSet<string> excludedPlatforms = new(StringComparer.OrdinalIgnoreCase);
     public Task ScanCompletion { get; private set; } = Task.CompletedTask;
 
-    public GameBrowserWindow(SettingsStore store, Action<GameMetadata> inspect, Func<Task> preferences)
+    public GameBrowserWindow(SettingsStore store, Action<GameMetadata> inspect, Func<Task> preferences, GameNotesStore? notesStore = null)
     {
         this.store = store; this.inspect = inspect; this.preferences = preferences;
+        this.notesStore = notesStore ?? new GameNotesStore(Path.Combine(Path.GetDirectoryName(store.FilePath)!, "game-notes"));
         Title = "OpenMFME Game Manager"; Width = 960; Height = 650; MinWidth = 720; MinHeight = 450;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var outer = new DockPanel();
         var definition = RecoveredFormLibrary.Get("ManagerForm").Root.Children.Single(node => node.InstanceName == "ManagerMenu");
         var menu = new Menu { Name = "ManagerMenu", ItemsSource = definition.Children
             .Select(node => RecoveredMenuFactory.CreateItem(node, ResolveMenuAction)).ToArray() };
+        editNotesMenu = ((Control[])menu.ItemsSource!).OfType<MenuItem>().Single(item => item.Name == "AddNotes1");
+        editNotesMenu.IsEnabled = false;
         DockPanel.SetDock(menu, Dock.Top); outer.Children.Add(menu);
         var dock = new DockPanel { Margin = new Thickness(20) };
         outer.Children.Add(dock);
@@ -65,7 +74,11 @@ public sealed class GameBrowserWindow : Window
         body.Children.Add(list);
         var information = new DockPanel();
         DockPanel.SetDock(open, Dock.Bottom); information.Children.Add(open);
-        information.Children.Add(new ScrollViewer { Content = details }); Grid.SetColumn(information, 1); body.Children.Add(information);
+        information.Children.Add(new TabControl { Name = "GameInformationTabs", ItemsSource = new[]
+        {
+            new TabItem { Header = "Game", Content = new ScrollViewer { Content = details } },
+            new TabItem { Header = "Notes", Content = new ScrollViewer { Content = notesDetails } }
+        } }); Grid.SetColumn(information, 1); body.Children.Add(information);
         dock.Children.Add(body); Content = outer;
         var rows = new Style(selector => selector.OfType<ListBoxItem>());
         rows.Setters.Add(new Setter(ListBoxItem.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
@@ -74,7 +87,7 @@ public sealed class GameBrowserWindow : Window
         {
             if (game is null) return null;
             var row = new StackPanel { Spacing = 3, Margin = new Thickness(0, 3) };
-            row.Children.Add(new TextBlock { Text = game.DisplayName, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+            row.Children.Add(new TextBlock { Text = DisplayName(game), FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
             row.Children.Add(new TextBlock { Text = game.System.Length == 0 ? "System not specified" : game.System, FontSize = 12, Foreground = Brushes.DimGray });
             var filename = new TextBlock { Text = game.FilePath, FontSize = 11, Foreground = Brushes.DimGray, TextTrimming = TextTrimming.CharacterEllipsis };
             ToolTip.SetTip(filename, game.FilePath); row.Children.Add(filename);
@@ -85,7 +98,9 @@ public sealed class GameBrowserWindow : Window
         list.SelectionChanged += (_, _) =>
         {
             open.IsEnabled = list.SelectedItem is GameMetadata;
+            editNotesMenu.IsEnabled = list.SelectedItem is GameMetadata;
             details.Text = list.SelectedItem is GameMetadata game ? game.Summary : "Select a game to view its layout information.";
+            UpdateNotesDetails();
         };
         open.Click += (_, _) => InspectSelection();
         list.DoubleTapped += (_, _) => InspectSelection();
@@ -94,12 +109,13 @@ public sealed class GameBrowserWindow : Window
         store.Changed += SettingsChanged;
         Opened += (_, _) => BeginScan();
         Closed += (_, _) => { closed = true; store.Changed -= SettingsChanged; scan?.Cancel(); };
-        Filter();
+        Filter(); UpdateNotesDetails();
     }
 
     private Action? ResolveMenuAction(DfmComponent item) => item.Text("OnClick") switch
     {
         "ExitManagerClick" => Close,
+        "AddNotes1Click" => OpenNotes,
         "FindClick" => OpenFind,
         "FilterClick" => OpenFilter,
         "ScanDirectoryClick" => BeginScan,
@@ -107,6 +123,23 @@ public sealed class GameBrowserWindow : Window
         "SetMainFolder1Click" => async () => await new PreferencesWindow(store, mainFolderOnly: true).ShowDialog<bool>(this),
         _ => null
     };
+
+    private string DisplayName(GameMetadata game) => gameNotes.TryGetValue(game.FilePath, out var notes) && !string.IsNullOrWhiteSpace(notes.Name)
+        ? notes.Name : game.DisplayName;
+
+    private void UpdateNotesDetails() => notesDetails.Text = list.SelectedItem is GameMetadata game
+        ? gameNotes.TryGetValue(game.FilePath, out var notes) ? notes.Summary : "No OpenMFME notes saved for this game."
+        : "Select a game to view its notes.";
+
+    private void OpenNotes()
+    {
+        if (notesEditor is not null) { notesEditor.Window.Activate(); return; }
+        if (list.SelectedItem is not GameMetadata game) return;
+        notesEditor = new GameNotesEditor(notesStore, game, notes =>
+        { gameNotes[game.FilePath] = notes; Filter(); UpdateNotesDetails(); BeginScan(); });
+        notesEditor.Window.Closed += (_, _) => notesEditor = null;
+        notesEditor.Window.ShowDialog(this);
+    }
 
     private void OpenFind()
     {
@@ -124,7 +157,7 @@ public sealed class GameBrowserWindow : Window
         for (var offset = 1; offset <= visible.Length; offset++)
         {
             var candidate = visible[(start + offset) % visible.Length];
-            if (!candidate.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!DisplayName(candidate).Contains(query, StringComparison.OrdinalIgnoreCase)) continue;
             list.SelectedItem = candidate; list.ScrollIntoView(candidate); return true;
         }
         return false;
@@ -162,7 +195,22 @@ public sealed class GameBrowserWindow : Window
             }));
             var result = await GameLibraryScanner.ScanAsync(store.Current.GameFolders, store.Current.IncludeSubfolders, token, progress);
             if (closed || !ReferenceEquals(scan, current)) return;
-            games = result.Games; scanWarnings = result.Warnings;
+            var notesResult = await Task.Run(() =>
+            {
+                var loaded = new Dictionary<string, GameNotes>(GameLibraryScanner.PathComparer);
+                var issues = new List<string>();
+                foreach (var game in result.Games)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try { if (this.notesStore.Read(game.FilePath) is { } notes) loaded[game.FilePath] = notes; }
+                    catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or ArgumentException or NotSupportedException)
+                    { issues.Add($"Notes for {game.DisplayName}: {exception.Message}"); }
+                }
+                return (loaded, issues);
+            }, token);
+            if (closed || !ReferenceEquals(scan, current)) return;
+            gameNotes.Clear(); foreach (var pair in notesResult.loaded) gameNotes.Add(pair.Key, pair.Value);
+            games = result.Games; scanWarnings = result.Warnings.Concat(notesResult.issues).ToArray();
             filterDialog?.UpdatePlatforms(games.Select(game => game.System));
             warnings.Text = scanWarnings.Length == 0 ? "No issues reported. Inaccessible subfolders and directory links are skipped."
                 : string.Join(Environment.NewLine, scanWarnings.Take(100)) + (scanWarnings.Length > 100 ? "\nFurther issues omitted from this view." : "");
@@ -190,8 +238,8 @@ public sealed class GameBrowserWindow : Window
         var system = systems.SelectedItem as string;
         var selected = list.SelectedItem as GameMetadata;
         var visible = games.Where(game => !excludedPlatforms.Contains(game.System) &&
-            game.DisplayName.Contains(nameFilter, StringComparison.OrdinalIgnoreCase) && (system is null or "All systems" || game.System.Equals(system, StringComparison.OrdinalIgnoreCase)) &&
-            $"{game.DisplayName} {game.System} {game.FilePath}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+            DisplayName(game).Contains(nameFilter, StringComparison.OrdinalIgnoreCase) && (system is null or "All systems" || game.System.Equals(system, StringComparison.OrdinalIgnoreCase)) &&
+            $"{DisplayName(game)} {game.System} {game.FilePath}".Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
         list.ItemsSource = visible;
         if (selected is not null) list.SelectedItem = visible.FirstOrDefault(game => GameLibraryScanner.PathComparer.Equals(game.FilePath, selected.FilePath));
         status.Text = $"{visible.Length:N0} of {games.Length:N0} games" + (scanWarnings.Length == 0 ? "" : $" · {scanWarnings.Length:N0} file/folder issues");
