@@ -6,7 +6,7 @@ The UI-independent `OpenMFME.Formats` library parses Delphi `TPF0` form streams 
 
 The desktop application reads a checked-in JSON catalog of that neutral model. It does not interpret original DFM streams at runtime or require MFME.exe. A first-pass Avalonia mapper creates standard controls from the model. This is a reconstruction preview, not the final handwritten implementation of each feature.
 
-Main-menu captions and hierarchy come from the recovered main form. Explicit command mappings open corresponding previews, except Preferences and Game Manager, which now open working independent features. Load Game inspects metadata, and About describes OpenMFME. Unimplemented leaf commands are disabled. Menu-to-window routing is newly implemented and does not execute original event handlers.
+Main-menu captions and hierarchy come from the recovered main form. Explicit command mappings open corresponding previews, except Game Manager, which opens the working browser. File → Preferences opens the recovered MFME Preferences form; the separate Game folders entry opens saved game-browser settings. Load Game inspects metadata, and About describes OpenMFME. Unimplemented leaf commands are disabled. Menu-to-window routing is newly implemented and does not execute original event handlers.
 
 ## Observed recovery
 

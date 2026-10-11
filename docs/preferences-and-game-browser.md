@@ -4,7 +4,9 @@ These are independent OpenMFME features. They do not recover or execute MFME's o
 
 ## Preferences
 
-The new window supports game-folder paths, searching subfolders and opening the game browser at startup. Paste an absolute path and choose Add, or use Browse then Add. Duplicate normalized paths are ignored. Remove affects the preference list, not the directory itself. Save commits the draft; Cancel/window close discards it. An entered but unadded path must be added or cleared before Save, so it is not silently lost.
+File → Preferences opens the recovered MFME Preferences preview. The separate File → Game folders entry, sidebar Game folders button and browser Game folders button open the working Game browser settings window.
+
+This settings window supports game-folder paths, searching subfolders and opening the game browser at startup. Paste an absolute path and choose Add, or use Browse then Add. Duplicate normalized paths are ignored. Remove affects the preference list, not the directory itself. Save commits the draft; Cancel/window close discards it. An entered but unadded path must be added or cleared before Save, so it is not silently lost.
 
 Defaults use an empty folder list, include subfolders and leave startup browsing off. Settings are versioned JSON at LocalApplicationData/OpenMFME/settings.json; on Windows this is normally `%LOCALAPPDATA%\OpenMFME\settings.json`. No settings file is created merely by launching. Missing settings use defaults; malformed, unreadable or unsupported settings show a notice and are left alone until an explicit Save. Saves use a temporary file in the settings directory, followed by replacement. Failed saves leave live settings unchanged. These preferences are separate from original MFME settings.
 

@@ -24,11 +24,11 @@ public sealed class PreferencesWindow : Window
         folders = store.Current.GameFolders.ToList();
         recursive.IsChecked = store.Current.IncludeSubfolders;
         startup.IsChecked = store.Current.OpenGameBrowserOnStartup;
-        Title = "OpenMFME preferences"; Width = 760; Height = 520; MinWidth = 560; MinHeight = 420;
+        Title = "Game browser settings"; Width = 760; Height = 520; MinWidth = 560; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var content = new DockPanel { Margin = new Thickness(20) };
         var header = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 0, 14) };
-        header.Children.Add(new TextBlock { Text = "Preferences", FontSize = 22, FontWeight = FontWeight.SemiBold });
+        header.Children.Add(new TextBlock { Text = "Game browser settings", FontSize = 22, FontWeight = FontWeight.SemiBold });
         header.Children.Add(new TextBlock { Text = "Choose where OpenMFME looks for games.", TextWrapping = TextWrapping.Wrap });
         header.Children.Add(new TextBlock { Text = "Game folders", FontWeight = FontWeight.SemiBold });
         var input = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };

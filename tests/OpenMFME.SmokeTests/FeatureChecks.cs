@@ -153,6 +153,19 @@ internal static class FeatureChecks
             new SettingsStore(settingsPath).Current.OpenGameBrowserOnStartup, "Preferences UI did not save/reload");
 
         var main = new MainWindow(store); main.Show(); Dispatcher.UIThread.RunJobs();
+        var fileMenu = main.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>().First();
+        var fileEntries = fileMenu.ItemsSource!.Cast<Control>().ToArray();
+        var originalPreferences = fileEntries.OfType<MenuItem>().Single(item => item.Name == "Preferences1");
+        originalPreferences.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var recoveredPreferences = main.OwnedWindows.Single(window => window.Title == "Preferences — UI preview");
+        check(recoveredPreferences is not PreferencesWindow && recoveredPreferences.GetVisualDescendants().OfType<Control>().Any(control => control.Name == "EffectsSlider"),
+            "File Preferences no longer opens the recovered MFME preferences form");
+        recoveredPreferences.Close();
+        var folderSettings = fileEntries.OfType<MenuItem>().Single(item => item.Name == "GameFolderSettings");
+        folderSettings.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var workingSettings = main.OwnedWindows.OfType<PreferencesWindow>().Single();
+        check(workingSettings.Title == "Game browser settings", "Game-folder settings have no separate menu route");
+        Click(workingSettings, "CancelPreferences");
         var browser = main.OwnedWindows.OfType<GameBrowserWindow>().Single();
         Pump(browser.ScanCompletion);
         main.FindControl<Button>("BrowseGames")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

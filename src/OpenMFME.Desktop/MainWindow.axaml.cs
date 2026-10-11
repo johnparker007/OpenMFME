@@ -23,6 +23,12 @@ public partial class MainWindow : Window
         var original = RecoveredFormLibrary.Get("MainForm").Root;
         var definition = original.Children.Single(child => child.InstanceName == "MainMenu");
         var items = definition.Children.Select(node => RecoveredMenuFactory.CreateItem(node, ResolveMenuAction)).ToList();
+        var fileMenu = (MenuItem)items[0];
+        var fileEntries = fileMenu.ItemsSource!.Cast<Control>().ToList();
+        var folders = new MenuItem { Name = "GameFolderSettings", Header = "Game folders…" };
+        folders.Click += async (_, _) => await OpenPreferencesAsync();
+        fileEntries.Insert(fileEntries.FindIndex(control => control.Name == "Preferences1") + 1, folders);
+        fileMenu.ItemsSource = fileEntries;
         var reconstruction = new MenuItem { Header = "UI reconstruction" };
         var browse = new MenuItem { Header = "Browse all recovered forms…" };
         browse.Click += (_, _) => new FormBrowserWindow().Show(this);
@@ -42,7 +48,6 @@ public partial class MainWindow : Window
     private Action? ResolveMenuAction(DfmComponent item)
     {
         var handler = item.Text("OnClick");
-        if (handler == "GeneralClick") return () => _ = OpenPreferencesAsync();
         if (handler == "GameManager1Click") return OpenGameBrowser;
         if (handler == "LoadGame1Click")
             return () => OpenLayout_Click(this, new RoutedEventArgs());
@@ -54,6 +59,7 @@ public partial class MainWindow : Window
             return () => WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
         var target = handler switch
         {
+            "GeneralClick" => "GeneralConfig",
             "ConfigurationClick" => "Config",
             "MainBoard1Click" => "DebugForm",
             "Samples1Click" => "Sampler",

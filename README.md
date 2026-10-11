@@ -31,9 +31,9 @@ On Windows, double-click `Run-OpenMFME.cmd` to build and launch. You can also op
 
 The application targets .NET 8 and Avalonia 12.1.4. NuGet restores packages on the first build. Windows is the verified desktop platform; Linux and macOS execution have not yet been tested.
 
-Open **File → Preferences** (or the sidebar **Preferences** button), add one or more game folders, and choose **Save**. **Game Manager** and **Browse games** open the working browser. Search/filter the list, select a game, then choose **Open layout information** to view it in the main window. **File → Load Game** also inspects a single configuration file. Games cannot be played yet.
+Open **File → Game folders…** (or the sidebar **Game folders…** button), add one or more game folders, and choose **Save**. **Game Manager** and **Browse games** open the working browser. Search/filter the list, select a game, then choose **Open layout information** to view it in the main window. **File → Load Game** also inspects a single configuration file. Games cannot be played yet.
 
-Open **UI reconstruction → Browse all recovered forms** to preview the original windows, including the original Preferences and Game Manager designs. Other mapped menu entries, such as **Configuration**, still open previews.
+Open **UI reconstruction → Browse all recovered forms** to preview the original windows, including the original Preferences and Game Manager designs. **File → Preferences** opens the recovered MFME Preferences form. Other mapped menu entries, such as **Configuration**, also open previews.
 
 Preferences are stored in the current user's local application-data directory under `OpenMFME/settings.json` (usually `%LOCALAPPDATA%\OpenMFME\settings.json` on Windows). Cancel leaves saved preferences unchanged. An open browser refreshes after preferences are saved. See [working preferences and game browsing](docs/preferences-and-game-browser.md).
 
