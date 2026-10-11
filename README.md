@@ -31,7 +31,7 @@ On Windows, double-click `Run-OpenMFME.cmd` to build and launch. You can also op
 
 The application targets .NET 8 and Avalonia 12.1.4. NuGet restores packages on the first build. Windows is the verified desktop platform; Linux and macOS execution have not yet been tested.
 
-Open **File → Game folders…** (or the sidebar **Game folders…** button), add one or more game folders, and choose **Save**. **Game Manager** and **Browse games** open the working browser. Search/filter the list, select a game, then choose **Open layout information** to view it in the main window. **File → Load Game** also inspects a single configuration file. Games cannot be played yet.
+Select **Game Manager** to enter its own window and menus; the main window is hidden until you exit. Use **Database → Set Main Game Folder** or **Additional Game Folders**, apply your folder choices, and choose **Save**. **Database → Scan All** rescans the library. **Exit** or the window close button returns to the main window. Search/filter the list, select a game, then choose **Open layout information** to view it in the main window. **File → Load Game** also inspects a single configuration file. Games cannot be played yet.
 
 Open **UI reconstruction → Browse all recovered forms** to preview the original windows, including the original Preferences and Game Manager designs. **File → Preferences** opens the recovered MFME Preferences form. Other mapped menu entries, such as **Configuration**, also open previews.
 

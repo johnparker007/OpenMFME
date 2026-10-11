@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Styling;
 using OpenMFME.Desktop.Services;
+using OpenMFME.Desktop.Reconstruction;
 using OpenMFME.Formats;
 
 namespace OpenMFME.Desktop;
@@ -34,16 +35,21 @@ public sealed class GameBrowserWindow : Window
     public GameBrowserWindow(SettingsStore store, Action<GameMetadata> inspect, Func<Task> preferences)
     {
         this.store = store; this.inspect = inspect; this.preferences = preferences;
-        Title = "OpenMFME game browser"; Width = 960; Height = 650; MinWidth = 720; MinHeight = 450;
+        Title = "OpenMFME Game Manager"; Width = 960; Height = 650; MinWidth = 720; MinHeight = 450;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        var outer = new DockPanel();
+        var definition = RecoveredFormLibrary.Get("ManagerForm").Root.Children.Single(node => node.InstanceName == "ManagerMenu");
+        var menu = new Menu { Name = "ManagerMenu", ItemsSource = definition.Children
+            .Select(node => RecoveredMenuFactory.CreateItem(node, ResolveMenuAction)).ToArray() };
+        DockPanel.SetDock(menu, Dock.Top); outer.Children.Add(menu);
         var dock = new DockPanel { Margin = new Thickness(20) };
+        outer.Children.Add(dock);
         var header = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 0, 14) };
-        header.Children.Add(new TextBlock { Text = "Game browser", FontSize = 22, FontWeight = FontWeight.SemiBold });
+        header.Children.Add(new TextBlock { Text = "Game Manager", FontSize = 22, FontWeight = FontWeight.SemiBold });
         header.Children.Add(new TextBlock { Text = "Browse layout information. Games cannot be played in this build.", TextWrapping = TextWrapping.Wrap });
         header.Children.Add(folders);
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var manage = new Button { Name = "ManageFolders", Content = "Game folders…" };
-        toolbar.Children.Add(manage); toolbar.Children.Add(refresh); toolbar.Children.Add(cancel); header.Children.Add(toolbar);
+        toolbar.Children.Add(refresh); toolbar.Children.Add(cancel); header.Children.Add(toolbar);
         var filter = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         filter.Children.Add(search); Grid.SetColumn(systems, 1); filter.Children.Add(systems); header.Children.Add(filter);
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
@@ -56,7 +62,7 @@ public sealed class GameBrowserWindow : Window
         var information = new DockPanel();
         DockPanel.SetDock(open, Dock.Bottom); information.Children.Add(open);
         information.Children.Add(new ScrollViewer { Content = details }); Grid.SetColumn(information, 1); body.Children.Add(information);
-        dock.Children.Add(body); Content = dock;
+        dock.Children.Add(body); Content = outer;
         var rows = new Style(selector => selector.OfType<ListBoxItem>());
         rows.Setters.Add(new Setter(ListBoxItem.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
         list.Styles.Add(rows);
@@ -81,12 +87,22 @@ public sealed class GameBrowserWindow : Window
         list.DoubleTapped += (_, _) => InspectSelection();
         refresh.Click += (_, _) => BeginScan();
         cancel.Click += (_, _) => scan?.Cancel();
-        manage.Click += async (_, _) => await this.preferences();
         store.Changed += SettingsChanged;
         Opened += (_, _) => BeginScan();
         Closed += (_, _) => { closed = true; store.Changed -= SettingsChanged; scan?.Cancel(); };
         Filter();
     }
+
+    private Action? ResolveMenuAction(DfmComponent item) => item.Text("OnClick") switch
+    {
+        "ExitManagerClick" => Close,
+        "FindClick" => () => search.Focus(),
+        "FilterClick" => () => systems.Focus(),
+        "ScanDirectoryClick" => BeginScan,
+        "SetGameDirectoryClick" => async () => await preferences(),
+        "SetMainFolder1Click" => async () => await new PreferencesWindow(store, mainFolderOnly: true).ShowDialog<bool>(this),
+        _ => null
+    };
 
     private void SettingsChanged(object? sender, EventArgs e) => BeginScan();
     private void BeginScan() => ScanCompletion = ReloadAsync();
@@ -98,7 +114,7 @@ public sealed class GameBrowserWindow : Window
         scan = current;
         var token = current.Token;
         refresh.IsEnabled = false; cancel.IsVisible = true;
-        folders.Text = store.Current.GameFolders.Length == 0 ? "No game folders selected. Choose Game folders to get started."
+        folders.Text = store.Current.GameFolders.Length == 0 ? "No game folders selected. Choose Database > Set Main Game Folder to get started."
             : $"{store.Current.GameFolders.Length} game folder(s) · {(store.Current.IncludeSubfolders ? "Including subfolders" : "Top folders only")}";
         status.Text = "Looking for games…";
         try

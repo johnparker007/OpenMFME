@@ -12,7 +12,9 @@ public partial class MainWindow : Window
 {
     private readonly SettingsStore settings;
     private GameBrowserWindow? gameBrowser;
-    private PreferencesWindow? preferencesWindow;
+    private bool startupHandled;
+    private bool closing;
+    public GameBrowserWindow? GameManager => gameBrowser;
 
     public MainWindow() : this(new SettingsStore()) { }
 
@@ -23,12 +25,6 @@ public partial class MainWindow : Window
         var original = RecoveredFormLibrary.Get("MainForm").Root;
         var definition = original.Children.Single(child => child.InstanceName == "MainMenu");
         var items = definition.Children.Select(node => RecoveredMenuFactory.CreateItem(node, ResolveMenuAction)).ToList();
-        var fileMenu = (MenuItem)items[0];
-        var fileEntries = fileMenu.ItemsSource!.Cast<Control>().ToList();
-        var folders = new MenuItem { Name = "GameFolderSettings", Header = "Game folders…" };
-        folders.Click += async (_, _) => await OpenPreferencesAsync();
-        fileEntries.Insert(fileEntries.FindIndex(control => control.Name == "Preferences1") + 1, folders);
-        fileMenu.ItemsSource = fileEntries;
         var reconstruction = new MenuItem { Header = "UI reconstruction" };
         var browse = new MenuItem { Header = "Browse all recovered forms…" };
         browse.Click += (_, _) => new FormBrowserWindow().Show(this);
@@ -40,9 +36,12 @@ public partial class MainWindow : Window
         RecoveredFormFactory.AddCompactStyles(MeterStrip);
         Opened += (_, _) =>
         {
+            if (startupHandled) return;
+            startupHandled = true;
             if (settings.LoadNotice is not null) StatusText.Text = settings.LoadNotice;
             if (settings.Current.OpenGameBrowserOnStartup) OpenGameBrowser();
         };
+        Closing += (_, _) => { closing = true; gameBrowser?.Close(); };
     }
 
     private Action? ResolveMenuAction(DfmComponent item)
@@ -120,25 +119,22 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    private async Task OpenPreferencesAsync(Window? owner = null)
-    {
-        if (preferencesWindow is not null) { preferencesWindow.Activate(); return; }
-        var dialog = new PreferencesWindow(settings);
-        preferencesWindow = dialog;
-        try { await dialog.ShowDialog<bool>(owner ?? this); }
-        finally { preferencesWindow = null; }
-    }
-
     private void OpenGameBrowser()
     {
         if (gameBrowser is not null) { gameBrowser.Activate(); return; }
-        gameBrowser = new GameBrowserWindow(settings, InspectGame, () => OpenPreferencesAsync(gameBrowser));
-        gameBrowser.Closed += (_, _) => gameBrowser = null;
-        gameBrowser.Show(this);
+        var manager = new GameBrowserWindow(settings, InspectGame, async () =>
+            await new PreferencesWindow(settings).ShowDialog<bool>(gameBrowser!));
+        gameBrowser = manager;
+        manager.Closed += (_, _) =>
+        {
+            gameBrowser = null;
+            if (!closing) { Show(); Activate(); }
+        };
+        try { manager.Show(); Hide(); }
+        catch { gameBrowser = null; manager.Close(); Show(); throw; }
     }
 
     private void Games_Click(object? sender, RoutedEventArgs e) => OpenGameBrowser();
-    private async void Preferences_Click(object? sender, RoutedEventArgs e) => await OpenPreferencesAsync();
 
     private void Forms_Click(object? sender, RoutedEventArgs e) => new FormBrowserWindow().Show(this);
 

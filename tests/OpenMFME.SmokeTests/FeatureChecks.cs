@@ -152,6 +152,7 @@ internal static class FeatureChecks
         check(!preferences.IsVisible && store.Current.GameFolders.Length == 2 &&
             new SettingsStore(settingsPath).Current.OpenGameBrowserOnStartup, "Preferences UI did not save/reload");
 
+        store.Save(store.Current with { OpenGameBrowserOnStartup = false });
         var main = new MainWindow(store); main.Show(); Dispatcher.UIThread.RunJobs();
         var fileMenu = main.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>().First();
         var fileEntries = fileMenu.ItemsSource!.Cast<Control>().ToArray();
@@ -161,15 +162,32 @@ internal static class FeatureChecks
         check(recoveredPreferences is not PreferencesWindow && recoveredPreferences.GetVisualDescendants().OfType<Control>().Any(control => control.Name == "EffectsSlider"),
             "File Preferences no longer opens the recovered MFME preferences form");
         recoveredPreferences.Close();
-        var folderSettings = fileEntries.OfType<MenuItem>().Single(item => item.Name == "GameFolderSettings");
-        folderSettings.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
-        var workingSettings = main.OwnedWindows.OfType<PreferencesWindow>().Single();
-        check(workingSettings.Title == "Game browser settings", "Game-folder settings have no separate menu route");
-        Click(workingSettings, "CancelPreferences");
-        var browser = main.OwnedWindows.OfType<GameBrowserWindow>().Single();
+        check(!fileEntries.Any(item => item.Name == "GameFolderSettings"), "File still contains Game folders");
+        var managerEntry = main.FindControl<Menu>("MainMenuBar")!.ItemsSource!.Cast<MenuItem>()
+            .Single(item => item.Name == "GameManager1");
+        managerEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var browser = main.GameManager!;
+        check(!main.IsVisible && browser.IsVisible, "Game Manager did not hide the main window");
         Pump(browser.ScanCompletion);
-        main.FindControl<Button>("BrowseGames")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        check(main.OwnedWindows.OfType<GameBrowserWindow>().Count() == 1, "Browser was duplicated on repeated open");
+        var menus = Named<Menu>(browser, "ManagerMenu").ItemsSource!.Cast<MenuItem>().ToArray();
+        check(menus.Length == 8, "Recovered Game Manager menu headers missing");
+        var database = menus.Single(item => item.Name == "Scan1").ItemsSource!.Cast<Control>().OfType<MenuItem>().ToArray();
+        database.Single(item => item.Name == "SetGameDirectory").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        var workingSettings = browser.OwnedWindows.OfType<PreferencesWindow>().Single();
+        check(workingSettings.Title == "Game browser settings", "Database folder settings route failed");
+        Click(workingSettings, "CancelPreferences");
+        database.Single(item => item.Name == "SetMainFolder1").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        var primary = browser.OwnedWindows.OfType<PreferencesWindow>().Single();
+        Named<TextBox>(primary, "FolderPath").Text = games;
+        Click(primary, "AddFolder"); Click(primary, "SavePreferences");
+        check(store.Current.GameFolders.SequenceEqual(new[] { games, child }), "Setting main folder lost additional folders");
+        Pump(browser.ScanCompletion);
+        database.Single(item => item.Name == "ScanDirectory").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Pump(browser.ScanCompletion);
+        managerEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        check(ReferenceEquals(main.GameManager, browser), "Game Manager was duplicated on repeated open");
         var list = Named<ListBox>(browser, "GamesList");
         check(list.ItemsSource!.Cast<GameMetadata>().Count() == 3, "Browser did not show scanned games");
         Named<TextBox>(browser, "GameSearch").Text = "Party"; Dispatcher.UIThread.RunJobs();
@@ -185,9 +203,30 @@ internal static class FeatureChecks
         list.SelectedIndex = 0; Dispatcher.UIThread.RunJobs();
         Snapshot(browser, renderDirectory, "GameBrowser");
         Click(browser, "InspectGame");
-        check(!browser.IsVisible && main.FindControl<TextBlock>("LayoutSummary")!.Text!.Contains("Party Time Player"),
+        check(main.IsVisible && !browser.IsVisible && main.FindControl<TextBlock>("LayoutSummary")!.Text!.Contains("Party Time Player"),
             "Inspecting a library game did not update the main window");
+        managerEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        var exiting = main.GameManager!;
+        Named<Menu>(exiting, "ManagerMenu").ItemsSource!.Cast<MenuItem>().Single(item => item.Name == "ExitManager")
+            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        check(main.IsVisible && main.GameManager is null, "Manager Exit did not restore main window");
+        managerEntry.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Dispatcher.UIThread.RunJobs();
+        main.GameManager!.Close();
+        check(main.IsVisible && main.GameManager is null, "Manager window close did not restore main window");
         main.Close();
+        store.Save(store.Current with { OpenGameBrowserOnStartup = true });
+        var startupMain = new MainWindow(store); startupMain.Show(); Dispatcher.UIThread.RunJobs();
+        var startupManager = startupMain.GameManager!;
+        check(!startupMain.IsVisible && startupManager.IsVisible, "Startup Game Manager did not hide main window");
+        startupManager.Close(); Dispatcher.UIThread.RunJobs();
+        check(startupMain.IsVisible && startupMain.GameManager is null, "Exiting startup manager reopened it");
+        startupMain.FindControl<Button>("BrowseGames")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var shutdownManager = startupMain.GameManager!;
+        startupMain.Close(); Dispatcher.UIThread.RunJobs();
+        Pump(shutdownManager.ScanCompletion);
+        check(!startupMain.IsVisible && !shutdownManager.IsVisible && startupMain.GameManager is null,
+            "Closing main window left Game Manager open or restored main window");
+
 
         store.Save(store.Current with { GameFolders = [] });
         var empty = new GameBrowserWindow(store, _ => { }, () => Task.CompletedTask);

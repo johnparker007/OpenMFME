@@ -4,7 +4,7 @@ These are independent OpenMFME features. They do not recover or execute MFME's o
 
 ## Preferences
 
-File → Preferences opens the recovered MFME Preferences preview. The separate File → Game folders entry, sidebar Game folders button and browser Game folders button open the working Game browser settings window.
+File → Preferences opens the recovered MFME Preferences preview. Folder settings are accessed within Game Manager: Database → Set Main Game Folder replaces the first configured folder while retaining additional folders; Database → Additional Game Folders opens the complete folder list. The first list entry is the main folder.
 
 This settings window supports game-folder paths, searching subfolders and opening the game browser at startup. Paste an absolute path and choose Add, or use Browse then Add. Duplicate normalized paths are ignored. Remove affects the preference list, not the directory itself. Save commits the draft; Cancel/window close discards it. An entered but unadded path must be added or cleared before Save, so it is not silently lost.
 
@@ -12,7 +12,7 @@ Defaults use an empty folder list, include subfolders and leave startup browsing
 
 ## Browser
 
-Game Manager and Browse games open one browser per main window. It scans only configured folders. Refresh rescans; Stop scan cancels and keeps previous results. Saving preferences automatically rescans an open browser. Closing it cancels its scan and removes its settings subscription. Preferences invoked from a browser are owned by that browser.
+Game Manager and Browse games hide the main window and open one Game Manager window with the recovered ManagerMenu. Exit, window close and inspecting a game restore the main window. Startup enters this mode once, so exiting does not reopen it. Unimplemented menu commands remain disabled. It scans only configured folders. Refresh rescans; Stop scan cancels and keeps previous results. Saving preferences automatically rescans an open browser. Closing it cancels its scan and removes its settings subscription. Preferences invoked from a browser are owned by that browser.
 
 Only .gam files are inspected; extension matching is case insensitive. Recursive and top-folder-only modes are supported. Overlapping folders are deduplicated using native path comparison. Directory links/reparse points and inaccessible subfolders are skipped. Unavailable root folders and unreadable/malformed configuration files appear in scan details. Unavailable/inaccessible folders are not equivalent to an empty collection; the details describe skip behaviour.
 
