@@ -426,3 +426,11 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Local MFME reference material and generated analysis databases
+reference/
+*.exe
+*.dll
+*.i64
+*.idb
+.idea/
