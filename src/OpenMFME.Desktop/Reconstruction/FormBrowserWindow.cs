@@ -22,7 +22,7 @@ public sealed class FormBrowserWindow : Window
         top.Children.Add(new TextBlock { Text = "Recovered MFME windows", FontSize = 22, FontWeight = Avalonia.Media.FontWeight.SemiBold });
         top.Children.Add(new TextBlock
         {
-            Text = "Browse reconstructed controls and menus. Custom graphics are placeholders; changes are temporary.",
+            Text = "Browse reconstructed controls and menus. Some custom controls and runtime content remain incomplete; changes are temporary.",
             TextWrapping = Avalonia.Media.TextWrapping.Wrap
         });
         top.Children.Add(search);

@@ -112,8 +112,20 @@ var configPreview = configFactory.CreateWindow(RecoveredFormLibrary.Get("Config"
 Check(!configFactory.UnsupportedClasses.Contains("TzcLightOnOff"), "DIP preview still uses a class placeholder");
 configPreview.Close();
 
-var renderDirectory = args.Length == 2 && args[0] == "--render-dir" ? Path.GetFullPath(args[1]) : null;
+string? renderDirectory = null;
+string? sampleGame = null;
+for (var index = 0; index < args.Length; index += 2)
+{
+    if (index + 1 >= args.Length) throw new ArgumentException("Expected a value after the option.");
+    switch (args[index])
+    {
+        case "--render-dir": renderDirectory = Path.GetFullPath(args[index + 1]); break;
+        case "--sample-game": sampleGame = Path.GetFullPath(args[index + 1]); break;
+        default: throw new ArgumentException($"Unknown option: {args[index]}");
+    }
+}
 if (renderDirectory is not null) Directory.CreateDirectory(renderDirectory);
+FeatureChecks.Run(Check, renderDirectory, sampleGame);
 var renderForms = new[] { "AlignmentForm", "GeneralConfig", "GameNotes", "Config", "SizeForm", "SnapForm", "GraphicEditorForm", "PlatformForm", "PropertiesForm", "ReelEditorForm" };
 foreach (var form in catalog.Forms)
 {
@@ -139,7 +151,7 @@ foreach (var form in catalog.Forms)
     window.Close();
 }
 
-var mainWindow = new MainWindow();
+var mainWindow = new MainWindow(new OpenMFME.Desktop.Services.SettingsStore(Path.Combine(Path.GetTempPath(), "OpenMFME-empty-check-" + Guid.NewGuid().ToString("N"), "settings.json")));
 mainWindow.Show(); Dispatcher.UIThread.RunJobs();
 Check(mainWindow.IsVisible, "Main shell failed to open");
 var menu = mainWindow.FindControl<Menu>("MainMenuBar")!;

@@ -6,7 +6,7 @@ The UI-independent `OpenMFME.Formats` library parses Delphi `TPF0` form streams 
 
 The desktop application reads a checked-in JSON catalog of that neutral model. It does not interpret original DFM streams at runtime or require MFME.exe. A first-pass Avalonia mapper creates standard controls from the model. This is a reconstruction preview, not the final handwritten implementation of each feature.
 
-Main-menu captions and hierarchy come from the recovered main form. Explicit command mappings open corresponding previews. The Load Game entry currently inspects metadata, and About describes OpenMFME. Unimplemented leaf commands are disabled. Menu-to-window routing is newly implemented and does not execute original event handlers.
+Main-menu captions and hierarchy come from the recovered main form. Explicit command mappings open corresponding previews, except Preferences and Game Manager, which now open working independent features. Load Game inspects metadata, and About describes OpenMFME. Unimplemented leaf commands are disabled. Menu-to-window routing is newly implemented and does not execute original event handlers.
 
 ## Observed recovery
 
@@ -24,9 +24,15 @@ Relevant format references: [Embarcadero ObjectBinaryToText](https://docwiki.emb
 - Colour swatches and empty image canvases are reconstructed. DIP-switch appearance is inferred rather than recovered from custom-control code. Remaining custom visual components and runtime-populated list/tree views use placeholders.
 - Saved visibility, captions, geometry, enabled state, common field values, parent fonts, common docking/anchors and tab order are mapped. Border/client-area defaults, resize constraints and specialized properties remain approximate. See [layout reconstruction](layout-reconstruction.md).
 - Runtime-generated tabs and data cannot be reconstructed from DFM alone. For example, the saved Game Configuration tab list contains only “None”; the original code populates it later.
-- Fields and selections can be edited temporarily. Original commands are disabled except closing a preview. No settings, layouts or ROM files are modified.
+- Fields and selections in recovered previews can be edited temporarily; their original commands are disabled except closing. The separate working preferences window saves only OpenMFME settings. Browsing/inspection never modifies game configurations, layouts or ROMs.
 
 Compact checkbox, radio, scrollbar, slider and tab-header templates accommodate the original geometry. Other controls use Avalonia's theme; native font metrics and custom rendering still differ, so this is not a pixel-identical clone.
+
+## Working application features
+
+A UI-independent game metadata reader and folder scanner live in OpenMFME.Formats. SettingsStore owns OpenMFME preferences, and the new PreferencesWindow/GameBrowserWindow implement working flows alongside the recovered previews. File scanning runs on a worker task with cancellation, while browser controls remain on the UI thread. Scan generations prevent older results/progress replacing a newer scan. Closed browsers unsubscribe and cancel outstanding scans.
+
+Settings are written through a temporary file in the same directory and replaced only after serialization succeeds. A failed save leaves the live settings unchanged. Missing/malformed preferences load defaults with a notice; no rewrite happens merely on load. [Feature details and limits](preferences-and-game-browser.md) describe storage, supported metadata and scanning.
 
 ## Boundaries for subsequent work
 

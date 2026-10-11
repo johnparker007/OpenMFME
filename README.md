@@ -11,9 +11,10 @@ A runnable C# / Avalonia UI reconstruction:
 - Standard controls reconstructed from their saved captions, geometry, properties and child hierarchy.
 - Restored button glyphs, colour swatches, empty artwork canvases and inferred DIP-switch previews.
 - Inherited fonts, compact range controls and tab headers, common docking/anchors and saved tab order.
-- Read-only inspection of MFME `.gam` metadata.
+- Saved OpenMFME preferences for game folders, subfolder scanning and opening the browser at startup.
+- A searchable game browser with system filtering and read-only `.gam` layout information.
 
-This is an interface milestone. Original commands and emulation are not implemented. Previews allow temporary edits to fields and selections; they do not save settings or modify layouts. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
+This is an interface milestone. Preferences and game browsing are independent OpenMFME features; original emulation and editing commands are not implemented. Recovered-form previews allow temporary edits; the separate working preferences window saves OpenMFME settings. Game configurations, layouts and ROMs are never modified by these features. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
 
 The recorded form streams contain 4,464 components. See [the generated recovery report](docs/form-recovery.md) and [architecture notes](docs/architecture.md) for scope and limitations.
 
@@ -30,7 +31,11 @@ On Windows, double-click `Run-OpenMFME.cmd` to build and launch. You can also op
 
 The application targets .NET 8 and Avalonia 12.1.4. NuGet restores packages on the first build. Windows is the verified desktop platform; Linux and macOS execution have not yet been tested.
 
-Open **UI reconstruction → Browse all recovered forms** to preview the original windows. Main-menu entries such as **File → Preferences** and **Configuration** also open the corresponding previews. **File → Load Game** currently opens only the game-configuration metadata inspector.
+Open **File → Preferences** (or the sidebar **Preferences** button), add one or more game folders, and choose **Save**. **Game Manager** and **Browse games** open the working browser. Search/filter the list, select a game, then choose **Open layout information** to view it in the main window. **File → Load Game** also inspects a single configuration file. Games cannot be played yet.
+
+Open **UI reconstruction → Browse all recovered forms** to preview the original windows, including the original Preferences and Game Manager designs. Other mapped menu entries, such as **Configuration**, still open previews.
+
+Preferences are stored in the current user's local application-data directory under `OpenMFME/settings.json` (usually `%LOCALAPPDATA%\OpenMFME\settings.json` on Windows). Cancel leaves saved preferences unchanged. An open browser refreshes after preferences are saved. See [working preferences and game browsing](docs/preferences-and-game-browser.md).
 
 ## Validation
 
@@ -38,7 +43,7 @@ Open **UI reconstruction → Browse all recovered forms** to preview the origina
 dotnet run --project tests/OpenMFME.SmokeTests -c Release
 ```
 
-The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping, transparency, font inheritance, resizing and keyboard/control input. Optional screenshots:
+The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping, transparency, font inheritance, resizing, keyboard/control input, saved preferences, metadata decoding, folder scanning and browser interaction. Optional screenshots:
 
 ```powershell
 dotnet run --project tests/OpenMFME.SmokeTests -c Release -- --render-dir artifacts/previews
@@ -65,5 +70,5 @@ Extraction treats the executable as data and never runs it. The source hash and 
 
 1. Decode archived image-list masks and implement remaining custom-control equivalents.
 2. Recover runtime-populated tabs/lists and remaining inherited properties/client-area defaults.
-3. Replace preview-only actions with independently implemented UI behavior.
+3. Add useful game-library actions and remaining independently implemented UI behavior.
 4. Connect a separately testable emulation engine, starting with Astra / Party Time Player.

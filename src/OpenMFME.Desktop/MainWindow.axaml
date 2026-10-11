@@ -12,12 +12,14 @@
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="32" Spacing="16">
           <TextBlock Text="OpenMFME" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center" />
           <TextBlock Text="A new home for fruit machine preservation." FontSize="16" TextAlignment="Center" TextWrapping="Wrap" />
-          <TextBlock Text="The original menu structure and meter strip are now reconstructed. Browse the recovered forms to explore the windows and dialogs. Machine emulation is not connected yet." TextAlignment="Center" TextWrapping="Wrap" Foreground="#56616E" />
+          <Button x:Name="BrowseGames" Content="Browse games…" Click="Games_Click" HorizontalAlignment="Center" />
+          <TextBlock Text="The original menu structure and meter strip are now reconstructed. Add your game folders and browse layout information, or explore the recovered windows and dialogs. Machine emulation is not connected yet." TextAlignment="Center" TextWrapping="Wrap" Foreground="#56616E" />
         </StackPanel>
       </Border>
       <Border Grid.Column="1" Padding="16" BorderBrush="#CAD1D9" BorderThickness="1" CornerRadius="4">
         <ScrollViewer>
           <StackPanel Spacing="16">
+            <Button x:Name="OpenPreferences" Content="Preferences…" Click="Preferences_Click" />
             <TextBlock Text="Layout information" FontSize="18" FontWeight="SemiBold" />
             <Button Content="Open layout information…" Click="OpenLayout_Click" />
             <TextBlock x:Name="LayoutSummary" Text="Open a .gam file to inspect its system, layout and ROM filenames. This build does not run machine ROMs." TextWrapping="Wrap" />

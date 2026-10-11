@@ -4,13 +4,21 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using OpenMFME.Desktop.Reconstruction;
 using OpenMFME.Formats;
+using OpenMFME.Desktop.Services;
 
 namespace OpenMFME.Desktop;
 
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly SettingsStore settings;
+    private GameBrowserWindow? gameBrowser;
+    private PreferencesWindow? preferencesWindow;
+
+    public MainWindow() : this(new SettingsStore()) { }
+
+    public MainWindow(SettingsStore settings)
     {
+        this.settings = settings;
         InitializeComponent();
         var original = RecoveredFormLibrary.Get("MainForm").Root;
         var definition = original.Children.Single(child => child.InstanceName == "MainMenu");
@@ -24,11 +32,18 @@ public partial class MainWindow : Window
         var meters = original.Children.Single(child => child.InstanceName == "MeterPanel");
         MeterStrip.Content = new RecoveredFormFactory().CreateSurface(meters, inheritanceRoot: original);
         RecoveredFormFactory.AddCompactStyles(MeterStrip);
+        Opened += (_, _) =>
+        {
+            if (settings.LoadNotice is not null) StatusText.Text = settings.LoadNotice;
+            if (settings.Current.OpenGameBrowserOnStartup) OpenGameBrowser();
+        };
     }
 
     private Action? ResolveMenuAction(DfmComponent item)
     {
         var handler = item.Text("OnClick");
+        if (handler == "GeneralClick") return () => _ = OpenPreferencesAsync();
+        if (handler == "GameManager1Click") return OpenGameBrowser;
         if (handler == "LoadGame1Click")
             return () => OpenLayout_Click(this, new RoutedEventArgs());
         if (handler is "Exit1Click" or "ExitWithoutSave1Click")
@@ -39,8 +54,6 @@ public partial class MainWindow : Window
             return () => WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
         var target = handler switch
         {
-            "GeneralClick" => "GeneralConfig",
-            "GameManager1Click" => "ManagerForm",
             "ConfigurationClick" => "Config",
             "MainBoard1Click" => "DebugForm",
             "Samples1Click" => "Sampler",
@@ -85,29 +98,47 @@ public partial class MainWindow : Window
                 return;
 
             await using var stream = await selected[0].OpenReadAsync();
-            using var reader = new StreamReader(stream);
-            var text = await reader.ReadToEndAsync();
-            var fields = text.Split('\n')
-                .Select(line => line.Trim())
-                .Where(line => new[] { "Game ", "System ", "Layout ", "ROM ", "Protocol " }
-                    .Any(prefix => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
-            var information = string.Join(Environment.NewLine + Environment.NewLine, fields);
-            LayoutSummary.Text = string.IsNullOrWhiteSpace(information)
-                ? "No recognized game configuration fields were found."
-                : information;
-            StatusText.Text = $"Inspecting {selected[0].Name} · Emulation not connected";
+            var information = await GameMetadata.ReadAsync(stream, selected[0].TryGetLocalPath() ?? selected[0].Name);
+            InspectGame(information);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
         {
             await ShowMessage("Unable to open layout", exception.Message);
         }
     }
 
+    private void InspectGame(GameMetadata game)
+    {
+        LayoutSummary.Text = game.Summary;
+        StatusText.Text = $"Inspecting {game.DisplayName} · Emulation not connected";
+        Activate();
+    }
+
+    private async Task OpenPreferencesAsync(Window? owner = null)
+    {
+        if (preferencesWindow is not null) { preferencesWindow.Activate(); return; }
+        var dialog = new PreferencesWindow(settings);
+        preferencesWindow = dialog;
+        try { await dialog.ShowDialog<bool>(owner ?? this); }
+        finally { preferencesWindow = null; }
+    }
+
+    private void OpenGameBrowser()
+    {
+        if (gameBrowser is not null) { gameBrowser.Activate(); return; }
+        gameBrowser = new GameBrowserWindow(settings, InspectGame, () => OpenPreferencesAsync(gameBrowser));
+        gameBrowser.Closed += (_, _) => gameBrowser = null;
+        gameBrowser.Show(this);
+    }
+
+    private void Games_Click(object? sender, RoutedEventArgs e) => OpenGameBrowser();
+    private async void Preferences_Click(object? sender, RoutedEventArgs e) => await OpenPreferencesAsync();
+
     private void Forms_Click(object? sender, RoutedEventArgs e) => new FormBrowserWindow().Show(this);
 
     private async void About_Click(object? sender, RoutedEventArgs e) =>
         await ShowMessage("About OpenMFME",
-            "OpenMFME\n\nAn independent reconstruction of MFME for fruit machine preservation.\n\nRecovered menus and first-pass previews of 66 original forms. Custom graphics and original commands are still being reconstructed. Emulation is not yet implemented.");
+            "OpenMFME\n\nAn independent reconstruction of MFME for fruit machine preservation.\n\nRecovered menus and previews of 66 original forms, with saved preferences and a game browser. Emulation is not yet implemented.");
 
     private async Task ShowMessage(string title, string message)
     {
