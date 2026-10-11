@@ -22,7 +22,7 @@ public partial class MainWindow : Window
         items.Add(reconstruction);
         MainMenuBar.ItemsSource = items;
         var meters = original.Children.Single(child => child.InstanceName == "MeterPanel");
-        MeterStrip.Content = new RecoveredFormFactory().CreateSurface(meters);
+        MeterStrip.Content = new RecoveredFormFactory().CreateSurface(meters, inheritanceRoot: original);
         RecoveredFormFactory.AddCompactStyles(MeterStrip);
     }
 

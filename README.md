@@ -10,6 +10,7 @@ A runnable C# / Avalonia UI reconstruction:
 - A searchable browser with first-pass previews of all 66 recovered forms.
 - Standard controls reconstructed from their saved captions, geometry, properties and child hierarchy.
 - Restored button glyphs, colour swatches, empty artwork canvases and inferred DIP-switch previews.
+- Inherited fonts, compact range controls and tab headers, common docking/anchors and saved tab order.
 - Read-only inspection of MFME `.gam` metadata.
 
 This is an interface milestone. Original commands and emulation are not implemented. Previews allow temporary edits to fields and selections; they do not save settings or modify layouts. Unimplemented commands are disabled. Runtime-generated artwork and several custom controls still need reconstruction.
@@ -37,7 +38,7 @@ Open **UI reconstruction → Browse all recovered forms** to preview the origina
 dotnet run --project tests/OpenMFME.SmokeTests -c Release
 ```
 
-The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping and transparency. Optional screenshots:
+The checks use Avalonia's headless platform and do not control your desktop. They cover binary-format edge cases, catalog invariants, the main menu, all 66 rendered form previews, preview command behavior, glyph source hashes, state-strip cropping, transparency, font inheritance, resizing and keyboard/control input. Optional screenshots:
 
 ```powershell
 dotnet run --project tests/OpenMFME.SmokeTests -c Release -- --render-dir artifacts/previews
@@ -63,6 +64,6 @@ Extraction treats the executable as data and never runs it. The source hash and 
 ## Next milestones
 
 1. Decode archived image-list masks and implement remaining custom-control equivalents.
-2. Improve fonts, docking, inherited properties and runtime-populated tabs/lists.
+2. Recover runtime-populated tabs/lists and remaining inherited properties/client-area defaults.
 3. Replace preview-only actions with independently implemented UI behavior.
 4. Connect a separately testable emulation engine, starting with Astra / Party Time Player.

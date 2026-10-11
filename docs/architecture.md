@@ -22,11 +22,11 @@ Relevant format references: [Embarcadero ObjectBinaryToText](https://docwiki.emb
 - Nonvisual components (timers, dialogs, HTTP clients, image lists) are inventoried but not started.
 - Embedded binary assets retain their length, offset and SHA-256. Glyph bitmaps are bundled and rendered; the icon and two image-list containers are archived. See [graphics recovery](graphics-recovery.md).
 - Colour swatches and empty image canvases are reconstructed. DIP-switch appearance is inferred rather than recovered from custom-control code. Remaining custom visual components and runtime-populated list/tree views use placeholders.
-- Saved visibility, captions, explicit geometry, enabled state and common field values are mapped. Docking, inherited font/property behavior and many specialized properties remain approximate.
+- Saved visibility, captions, geometry, enabled state, common field values, parent fonts, common docking/anchors and tab order are mapped. Border/client-area defaults, resize constraints and specialized properties remain approximate. See [layout reconstruction](layout-reconstruction.md).
 - Runtime-generated tabs and data cannot be reconstructed from DFM alone. For example, the saved Game Configuration tab list contains only “None”; the original code populates it later.
 - Fields and selections can be edited temporarily. Original commands are disabled except closing a preview. No settings, layouts or ROM files are modified.
 
-The compact checkbox/radio templates accommodate the original control geometry. Other controls use Avalonia's theme, so this milestone is not a pixel-identical clone.
+Compact checkbox, radio, scrollbar, slider and tab-header templates accommodate the original geometry. Other controls use Avalonia's theme; native font metrics and custom rendering still differ, so this is not a pixel-identical clone.
 
 ## Boundaries for subsequent work
 
@@ -38,4 +38,4 @@ Keep local binaries, ROMs, layouts and disassembler databases outside the reposi
 
 ## Verification
 
-A standalone smoke-check executable constructs and renders all 66 previews through Avalonia's headless backend. Synthetic binary fixtures check UTF-8, signed numbers, inherited child ordering, collections and binary ranges; malformed/truncated/deeply nested data must fail. Tests also validate the main menu, form catalog and preview Cancel behavior. It can export representative PNGs for visual review without moving the user's mouse or opening visible windows.
+A standalone smoke-check executable constructs and renders all 66 previews through Avalonia's headless backend. Synthetic binary fixtures check UTF-8, signed numbers, inherited child ordering, collections and binary ranges; malformed/truncated/deeply nested data must fail. Tests also validate the main menu, form catalog, preview Cancel behavior, glyph hashes/transparency, nested font inheritance, docking, anchors, real-window resizing, Tab navigation and compact range-control input. It can export representative PNGs for visual review without moving the user's mouse or opening visible windows.

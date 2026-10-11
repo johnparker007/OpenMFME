@@ -18,4 +18,4 @@ TManyShape palette controls show their saved background and outline colours. Thi
 
 TzcLightOnOff controls occur as 20 DIP switches. Their switch appearance is a new approximation because the saved forms contain geometry but no drawing code or switch-state artwork. They do not send machine inputs or persist settings. This visual must be verified against the original control before claiming fidelity.
 
-Fonts, slider sizing, docking, inherited defaults and runtime-populated content still need a later fidelity pass. Original event-handler implementations have not been recovered by this work.
+Common font inheritance, compact slider/scrollbar sizing and docking/anchors are now implemented; see [layout reconstruction](layout-reconstruction.md) for their limits. Other inherited defaults and runtime-populated content still need work. Original event-handler implementations have not been recovered by this work.

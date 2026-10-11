@@ -23,7 +23,7 @@
             <TextBlock x:Name="LayoutSummary" Text="Open a .gam file to inspect its system, layout and ROM filenames. This build does not run machine ROMs." TextWrapping="Wrap" />
             <Separator />
             <TextBlock Text="UI reconstruction" FontWeight="SemiBold" />
-            <TextBlock Text="All 66 form streams have been parsed. Standard controls are reconstructed; custom graphics and command behavior remain to be implemented." TextWrapping="Wrap" />
+            <TextBlock Text="Explore the recovered windows, controls and button graphics. Commands and machine emulation are still in development." TextWrapping="Wrap" />
             <Button Content="Browse recovered forms" Click="Forms_Click" />
           </StackPanel>
         </ScrollViewer>

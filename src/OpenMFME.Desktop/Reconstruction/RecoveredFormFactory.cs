@@ -15,29 +15,53 @@ public sealed class RecoveredFormFactory
 {
     public HashSet<string> UnsupportedClasses { get; } = new(StringComparer.Ordinal);
     private Window? window;
+    private readonly Dictionary<DfmComponent, RecoveredFont> fonts = [];
+
+    private void RegisterFonts(DfmComponent node, RecoveredFont parent)
+    {
+        var font = RecoveredFont.Resolve(node, parent);
+        fonts[node] = font;
+        foreach (var child in node.Children) RegisterFonts(child, font);
+    }
 
     public Window CreateWindow(RecoveredForm form)
     {
         var root = form.Root;
+        RegisterFonts(root, RecoveredFont.Default);
         var width = root.Number("ClientWidth", 640);
         var height = root.Number("ClientHeight", 480);
         window = new Window
         {
             Title = $"{root.Text("Caption", root.InstanceName)} — UI preview",
-            Width = Math.Clamp(width + 24, 320, 1400),
-            Height = Math.Clamp(height + 112, 240, 950),
+            Width = Math.Clamp(width, 320, 1400),
+            Height = Math.Clamp(height + 60, 240, 950),
             MinWidth = 320,
             MinHeight = 220,
+            CanResize = root.Text("BorderStyle") is not ("bsToolWindow" or "bsDialog" or "bsSingle" or "bsNone"),
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Content = CreateContent(root, width, height)
         };
         AddCompactStyles(window);
+        fonts[root].Apply(window);
+        // Size the client area from the measured warning/footer/menu and saved form surface.
+        if (window.Content is DockPanel content)
+        {
+            var extraHeight = 0d;
+            foreach (var chrome in content.Children.Where(child => child is not ScrollViewer))
+            {
+                chrome.Measure(new Size(window.Width, double.PositiveInfinity));
+                extraHeight += chrome.DesiredSize.Height;
+            }
+            window.Height = Math.Clamp(height + extraHeight, 240, 950);
+        }
         return window;
     }
 
     private Control CreateContent(DfmComponent root, double width, double height)
     {
         var surface = CreateSurface(root, width, height);
+        surface.MinWidth = width;
+        surface.MinHeight = height;
         var dock = new DockPanel { Background = Background(root) };
         var note = new Border
         {
@@ -70,30 +94,36 @@ public sealed class RecoveredFormFactory
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
             Content = surface
         });
         return dock;
     }
 
-    public Canvas CreateSurface(DfmComponent node, double? width = null, double? height = null)
+    public RecoveredLayoutPanel CreateSurface(DfmComponent node, double? width = null, double? height = null, DfmComponent? inheritanceRoot = null)
     {
-        var canvas = new Canvas
+        if (inheritanceRoot is not null) RegisterFonts(inheritanceRoot, RecoveredFont.Default);
+        if (!fonts.ContainsKey(node)) RegisterFonts(node, RecoveredFont.Default);
+        var surface = new RecoveredLayoutPanel(
+            width ?? node.Number("ClientWidth", node.Number("Width", 640)),
+            height ?? node.Number("ClientHeight", node.Number("Height", 480)))
+        { Background = Background(node) };
+        if (node.ClassName is "TTabControl" or "TTabSet")
         {
-            Width = width ?? node.Number("Width", node.Number("ClientWidth", 640)),
-            Height = height ?? node.Number("Height", node.Number("ClientHeight", 480)),
-            Background = Background(node),
-            ClipToBounds = true
-        };
+            var client = node.Children.FirstOrDefault(child => child.Text("Align") == "alClient");
+            if (client is not null)
+                surface.ClientInset = new Thickness(client.Number("Left"), client.Number("Top"),
+                    Math.Max(0, surface.DesignSize.Width - client.Number("Left") - client.Number("Width")),
+                    Math.Max(0, surface.DesignSize.Height - client.Number("Top") - client.Number("Height")));
+        }
+        fonts[node].Apply(surface);
         foreach (var child in node.Children)
         {
             var control = CreateControl(child);
-            if (control is null)
-                continue;
-            Canvas.SetLeft(control, child.Number("Left"));
-            Canvas.SetTop(control, child.Number("Top"));
-            canvas.Children.Add(control);
+            if (control is not null) surface.Add(control, child);
         }
-        return canvas;
+        return surface;
     }
 
     private Control? CreateControl(DfmComponent node)
@@ -116,7 +146,8 @@ public sealed class RecoveredFormFactory
             "TTabControl" or "TTabSet" => Tabs(node),
             "TTabSheet" or "TTabSheet1" => CreateSurface(node),
             "TScrollBox" => new ScrollViewer { Content = CreateSurface(node) },
-            "TTrackBar" or "TScrollBar" => Slider(node),
+            "TTrackBar" => Slider(node),
+            "TScrollBar" => ScrollBar(node),
             "TProgressBar" => new ProgressBar { Minimum = node.Number("Min"), Maximum = node.Number("Max", 100), Value = node.Number("Position") },
             "TShape" or "TBevel" => Shape(node),
             "TSplitter" => new Border { Background = Brushes.LightGray },
@@ -143,10 +174,12 @@ public sealed class RecoveredFormFactory
         control.IsVisible = node.Boolean("Visible", true);
         control.IsEnabled &= node.Boolean("Enabled", true);
         control.MinWidth = control.MinHeight = 0;
-        if (control is TemplatedControl templated)
+        fonts[node].Apply(control);
+        if (control is not TextBlock || node.ClassName == "TStatusBar")
         {
-            templated.FontSize = Math.Max(9, Math.Abs(node.Number("Font.Height", -11)));
-            templated.FontFamily = new FontFamily(FontName(node));
+            control.TabIndex = (int)node.Number("TabOrder");
+            if (node.Properties.ContainsKey("TabStop"))
+                control.Focusable &= node.Boolean("TabStop", true);
         }
         if (node.Text("Hint") is { Length: > 0 } hint)
             ToolTip.SetTip(control, hint);
@@ -156,9 +189,6 @@ public sealed class RecoveredFormFactory
     private static TextBlock Label(DfmComponent node) => new()
     {
         Text = node.Text("Caption").Replace("&&", "\0").Replace("&", "").Replace("\0", "&"),
-        FontSize = Math.Max(9, Math.Abs(node.Number("Font.Height", -11))),
-        FontFamily = new FontFamily(node.Text("Font.Name", "Tahoma")),
-        FontWeight = SetContains(node, "Font.Style", "fsBold") ? FontWeight.Bold : FontWeight.Normal,
         TextWrapping = node.Boolean("WordWrap") ? TextWrapping.Wrap : TextWrapping.NoWrap,
         Foreground = Colour(node, "Font.Color", Brushes.Black)
     };
@@ -175,7 +205,7 @@ public sealed class RecoveredFormFactory
     private static Control LabeledEdit(DfmComponent node)
     {
         var stack = new StackPanel { Spacing = 2 };
-        stack.Children.Add(new TextBlock { Text = node.Text("EditLabel.Caption"), FontSize = 11 });
+        stack.Children.Add(new TextBlock { Text = node.Text("EditLabel.Caption") });
         stack.Children.Add(Edit(node));
         return stack;
     }
@@ -239,7 +269,7 @@ public sealed class RecoveredFormFactory
             grid.Children.Add(new TextBlock
             {
                 Text = Caption(node), HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false, FontSize = 11
+                VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
             });
         return grid;
     }
@@ -255,7 +285,7 @@ public sealed class RecoveredFormFactory
         grid.Children.Add(content);
         grid.Children.Add(new TextBlock
         {
-            Text = Caption(node), FontSize = 11, Background = Background(node),
+            Text = Caption(node), Background = Background(node),
             Margin = new Thickness(8, 0, 0, 0), HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false
         });
@@ -277,7 +307,7 @@ public sealed class RecoveredFormFactory
                 Content = items[index].Replace("&", "_"),
                 GroupName = node.InstanceName,
                 IsChecked = index == (int)node.Number("ItemIndex", -1),
-                FontSize = 11, Height = 20, MinHeight = 0,
+                Height = 20, MinHeight = 0,
                 Width = Math.Max(20, width / columns - 12)
             };
             Canvas.SetLeft(radio, 8 + index / rows * width / columns);
@@ -304,12 +334,12 @@ public sealed class RecoveredFormFactory
     {
         var grid = new Grid();
         var tabs = Strings(node, "Tabs.Strings");
-        var strip = new TabControl
+        var strip = new TabStrip
         {
-            ItemsSource = tabs.Select(title => new TabItem { Header = title }).ToArray(),
+            ItemsSource = tabs.Select(title => new TabStripItem { Content = title }).ToArray(),
             SelectedIndex = Math.Clamp((int)node.Number("TabIndex"), 0, Math.Max(0, tabs.Length - 1)),
             VerticalAlignment = VerticalAlignment.Top,
-            Height = 28
+            Height = Math.Min(28, node.Number("Height", 28))
         };
         grid.Children.Add(CreateSurface(node));
         grid.Children.Add(strip);
@@ -320,7 +350,19 @@ public sealed class RecoveredFormFactory
     {
         Minimum = node.Number("Min"), Maximum = Math.Max(node.Number("Min") + 1, node.Number("Max", 100)),
         Value = node.Number("Position"),
-        Orientation = node.Text("Orientation") is "trVertical" or "sbVertical" ? Orientation.Vertical : Orientation.Horizontal
+        IsSnapToTickEnabled = true, TickFrequency = 1,
+        SmallChange = Math.Max(1, node.Number("LineSize", 1)),
+        LargeChange = Math.Max(1, node.Number("PageSize", 10)),
+        IsDirectionReversed = node.Text("Orientation") == "trVertical",
+        Orientation = node.Text("Orientation") == "trVertical" ? Orientation.Vertical : Orientation.Horizontal
+    };
+
+    private static Control ScrollBar(DfmComponent node) => new RecoveredScrollBar
+    {
+        Minimum = node.Number("Min"), Maximum = Math.Max(node.Number("Min") + 1, node.Number("Max", 100)),
+        Value = node.Number("Position"), Focusable = true, SmallChange = node.Number("SmallChange", 1),
+        LargeChange = node.Number("LargeChange", 1), ViewportSize = node.Number("PageSize", 0),
+        Orientation = node.Text("Kind") == "sbVertical" ? Orientation.Vertical : Orientation.Horizontal
     };
 
     private static Control Shape(DfmComponent node) => new Border
@@ -360,13 +402,10 @@ public sealed class RecoveredFormFactory
         node.Properties.TryGetValue(property, out var value) && value.Value is JsonArray list
             ? list.Select(item => item?["value"]?.GetValue<string>() ?? "").ToArray() : [];
 
-    private static bool SetContains(DfmComponent node, string property, string item) =>
-        node.Properties.TryGetValue(property, out var value) && value.Value is JsonArray set &&
-        set.Any(entry => entry?.GetValue<string>() == item);
     private static string Caption(DfmComponent node) => node.Text("Caption").Replace("&", "_");
     private static IBrush Background(DfmComponent node) => Colour(node, "Color", new SolidColorBrush(Color.Parse("#F0F0F0")));
 
-    private static IBrush Colour(DfmComponent node, string property, IBrush fallback)
+    internal static IBrush Colour(DfmComponent node, string property, IBrush fallback)
     {
         if (!node.Properties.TryGetValue(property, out var value))
             return fallback;
@@ -385,8 +424,6 @@ public sealed class RecoveredFormFactory
         var colour = (int)value.Number(-1);
         return colour < 0 ? fallback : new SolidColorBrush(Color.FromRgb((byte)colour, (byte)(colour >> 8), (byte)(colour >> 16)));
     }
-
-    private static string FontName(DfmComponent node) => node.Text("Font.Name", "Tahoma") is "MS Sans Serif" ? "Microsoft Sans Serif" : node.Text("Font.Name", "Tahoma");
 
     public static void AddCompactStyles(StyledElement target)
     {

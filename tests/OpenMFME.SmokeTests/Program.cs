@@ -70,6 +70,7 @@ Reject(Fixture(writer => { Short(writer, "Blob"); writer.Write((byte)10); writer
 Reject(Fixture(writer => { Short(writer, "Caption"); writer.Write((byte)18); writer.Write(int.MaxValue); }));
 
 AppBuilder.Configure<App>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).SetupWithoutStarting();
+FidelityChecks.Run(Check);
 var catalog = RecoveredFormLibrary.Catalog;
 Check(catalog.Forms.Count == 66, "Unexpected recovered form count");
 Check(catalog.Forms.Sum(form => form.Root.DescendantsAndSelf().Count()) == 4464, "Unexpected component count");
